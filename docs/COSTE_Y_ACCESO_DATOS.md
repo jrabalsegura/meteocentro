@@ -12,7 +12,7 @@ Revisión: 9 de septiembre de 2026. El usuario no dispone de clave de Wundergrou
 
 Fuentes: [AEMET, preguntas frecuentes](https://opendata.aemet.es/centrodedescargas/docs/FAQs130917.pdf), [Meteoclimatic, XML](https://www.meteoclimatic.net/index/wp/xml_es.html) y [tarifas de The Weather Company](https://www.weathercompany.com/weather-data-apis/weather-data-apis-packages-pricing/). El proveedor también anuncia una prueba gratuita de 30 días limitada a clientes empresariales elegibles y una opción Enterprise de presupuesto personalizado. No se ha obtenido una oferta individual más barata.
 
-Para AEMET, entrar en [OpenData](https://opendata.aemet.es/centrodedescargas/inicio), solicitar una API key y completar el proceso por correo. Configurar la clave en el entorno del servidor cuando se desarrolle la integración. No introducirla en Git ni en documentos.
+Actualización 14-9-2026: se probó con éxito una clave AEMET OpenData ya existente en la configuración local de Radar App; ver la [matriz de fase 0](integraciones/MATRIZ_ACCESO.md). Para la futura integración, configurar una clave vigente en el entorno del servidor. No introducirla en Git ni en documentos. La clave usada indica expiración JWT el 31-10-2026, sin garantía de que el proveedor no la invalide antes.
 
 ## La clave personal de Wunderground no resuelve este caso
 

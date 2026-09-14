@@ -1,0 +1,1 @@
+"""Meteocentro shared backend package."""

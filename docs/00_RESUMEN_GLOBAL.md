@@ -8,6 +8,8 @@ La propuesta utiliza una base de datos propia y un proceso de recogida permanent
 
 **Actualización de alcance tras revisar el coste:** el usuario no tiene clave Wunderground y prefiere prescindir de esa red si supone un coste alto. La primera versión propuesta usará AEMET y Meteoclimatic. Wunderground queda aplazado como ampliación opcional; su ausencia no bloquea ninguna fase ni el cierre de esta versión. Ver [coste y acceso](COSTE_Y_ACCESO_DATOS.md).
 
+**Comprobación de fase 0, 14 de septiembre de 2026:** una clave AEMET local facilitada por el proyecto Radar App funcionó en observación, inventario y un día climatológico. El feed XML de Meteoclimatic también respondió, pero su licencia y la falta de coordenadas en el XML impiden dar por aprobada su ingestión y publicación en esta app. Ver la [matriz de acceso](integraciones/MATRIZ_ACCESO.md) y el [estado](ESTADO.md). Esta actualización no implica que haya aplicación implementada.
+
 ## Alcance geográfico y fuentes
 
 | Provincia | Código provincial | Inclusión |
@@ -169,4 +171,4 @@ Las ocho fases están enlazadas en [README.md](../README.md). La fase 2 ya permi
 
 La primera versión estará completa cuando el mapa y los históricos funcionen con AEMET y Meteoclimatic, ambas hayan pasado las pruebas reales de acceso e ingestión, y se demuestre que una exclusión sobrevive a un descubrimiento, a un trabajo en curso y a un reinicio. Si alguna de esas dos redes no está verificada, se indicará que la entrega es parcial. Wunderground figura como ampliación aplazada y no forma parte de este criterio de cierre.
 
-Quedan por concretar la clave AEMET, las condiciones de uso de los productos de Meteoclimatic, el dominio final, la exposición pública y la antigüedad que se desea importar. El acceso Wunderground se revisará solo si se decide incorporar esa ampliación. Las propuestas y la forma de resolver estas decisiones figuran en [DECISIONES.md](DECISIONES.md).
+Quedan por concretar la renovación de la clave AEMET antes de su caducidad, las condiciones de uso de los productos de Meteoclimatic, el dominio final, la exposición pública y la antigüedad que se desea importar. El acceso Wunderground se revisará solo si se decide incorporar esa ampliación. Las propuestas y la forma de resolver estas decisiones figuran en [DECISIONES.md](DECISIONES.md).

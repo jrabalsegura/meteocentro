@@ -10,7 +10,8 @@ Fecha inicial: 9 de septiembre de 2026. Registrar aquí cambios de criterio para
 - Posibilidad de eliminar estaciones que el administrador considere erróneas.
 - Descubrimiento periódico de nuevas estaciones y recogida automática de observaciones.
 - Despliegue en contenedores Podman en el servidor habitual mediante SSH.
-- Entrega inicial de documentación global, documentos por fase y repositorio de GitHub; no se ha solicitado implementar ni desplegar todavía.
+- Se solicitaron después las fases 0 y 1; el despliegue remoto sigue sin solicitarse.
+- Las coordenadas públicas de Meteoclimatic mostradas a minutos son suficientemente precisas para situar aproximadamente una estación en el mapa; no se exige precisión a segundos. Los casos cercanos a un límite provincial siguen requiriendo revisión.
 
 ## Propuestas de trabajo
 
@@ -36,7 +37,7 @@ Estas son decisiones técnicas propuestas, no preferencias adicionales atribuida
 
 | Cuestión | Cuándo hace falta | Qué sucede mientras tanto |
 | --- | --- | --- |
-| ¿Está disponible la clave AEMET? | Pruebas reales de fase 0 | Preparar contratos y continuar con las tareas independientes; no pedir claves por chat |
+| ¿Está disponible la clave AEMET? | Resuelto en fase 0: clave local de Radar App probada el 14-9-2026 | No copiarla a Git; prever renovación antes de su expiración JWT del 31-10-2026, sujeta a validez real |
 | ¿Hay acceso WU adecuado a un coste aceptable? | Solo si se reactiva la ampliación | No implementar ni activar WU; conservar extensibilidad |
 | ¿Qué uso e importación permite Meteoclimatic para esta app? | Ingestión, conservación y publicación de esa fuente | Resolver las condiciones de los feeds y archivo por separado |
 | ¿Se quiere reconsiderar WU con otro acuerdo de acceso? | Fuera de la primera versión | Mantenerlo aplazado y usar la revisión de coste como referencia |

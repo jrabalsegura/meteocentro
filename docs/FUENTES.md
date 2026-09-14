@@ -12,8 +12,8 @@ Consulta realizada el 9 de septiembre de 2026. Se utilizaron páginas de los pro
 
 ## Proveedores meteorológicos
 
-- **S6** [AEMET OpenData](https://opendata.aemet.es/centrodedescargas/inicio) y [acceso para desarrolladores](https://opendata.aemet.es/dist/index.html). Portal oficial y acceso a documentación. La interfaz dinámica de desarrolladores no proporcionó aquí un contrato completo legible; se verificará con sus metadatos en fase 0.
-- **S7** [Catálogo de productos AEMET](https://opendata.aemet.es/centrodedescargas/productosAEMET) y [observaciones horarias](https://www.aemet.es/es/eltiempo/observacion/ultimosdatos). Fundamentan la distinción entre observación actual, inventario climatológico y productos diarios o mensuales. No se ha medido su cobertura por provincia.
+- **S6** [AEMET OpenData](https://opendata.aemet.es/centrodedescargas/inicio) y [acceso para desarrolladores](https://opendata.aemet.es/dist/index.html). Contrato contrastado en fase 0 con respuesta real y metadatos; ver [AEMET.md](integraciones/AEMET.md).
+- **S7** [Catálogo de productos AEMET](https://opendata.aemet.es/centrodedescargas/productosAEMET) y [observaciones horarias](https://www.aemet.es/es/eltiempo/observacion/ultimosdatos). La fase 0 midió una instantánea de observación e inventario por separado y los clasificó con polígonos oficiales, sin tomarla como cobertura permanente.
 - **S8** [Nota legal de AEMET](https://www.aemet.es/es/nota_legal). Referencia para condiciones de uso y atribución aplicables al producto que se integre.
 - **S9** [Meteoclimatic formato XML meteodata](https://www.meteoclimatic.net/index/wp/xml_es.html). Describe datos de estación, publicación, sensores, unidades e indicadores de calidad. Se debe comprobar el endpoint efectivo y la presencia real de cada campo.
 - **S10** [Meteoclimatic datos históricos](https://wiki.meteoclimatic.net/wiki/Datos_hist%C3%B3ricos). Describe el archivo diario de extremos y precipitación. No documenta por sí solo una API pública de curvas intradiarias antiguas.
@@ -37,8 +37,8 @@ Consulta realizada el 9 de septiembre de 2026. Se utilizaron páginas de los pro
 - **S20** [React](https://react.dev/). Biblioteca propuesta para interfaz.
 - **S21** [PostgreSQL particionado de tablas](https://www.postgresql.org/docs/current/ddl-partitioning.html). Referencia para organizar un archivo creciente; la decisión y las mediciones son propias del proyecto.
 - **S22** [OpenStreetMap política de teselas](https://operations.osmfoundation.org/policies/tiles/). Referencia si se utiliza su servicio público estándar. Esta política no sustituye las condiciones de otros proveedores ni autoriza descargar mapas masivamente.
-- **S23** [IGN y CNIG límites administrativos](https://centrodedescargas.cnig.es/CentroDescargas/limites-municipales-provinciales-autonomicos). Fuente propuesta para los polígonos de provincia. El dataset y su versión concreta se descargarán y registrarán en fase 0.
+- **S23** [IGN/CNIG unidades administrativas](https://api-features.ign.es/collections/administrativeunit) y [condiciones de los límites](https://centrodedescargas.cnig.es/CentroDescargas/limites-municipales-provinciales-autonomicos). Cuatro geometrías provinciales descargadas el 14-9-2026 del servicio oficial, con [procedencia versionada](../config/provinces.provenance.json).
 
-## Aspectos no comprobados todavía
+## Actualización de la fase 0 — 14 de septiembre de 2026
 
-No se han probado claves AEMET o WU, feeds provinciales contra contratos de producción, importaciones reales de históricos, cobertura completa de estaciones, rendimiento de la aplicación ni características del host remoto. Las frecuencias, dimensionamiento, tecnología y retención del resumen son propuestas de ingeniería. Las fases indican cómo convertirlas en decisiones verificadas.
+La clave AEMET local funcionó en observación, inventario y un día climatológico; se comprobó también el XML nacional de Meteoclimatic. La [matriz](integraciones/MATRIZ_ACCESO.md) separa estos resultados de los permisos y productos pendientes. No se probaron clave WU, importación masiva, cobertura sostenida, rendimiento de la aplicación ni el host remoto. Las frecuencias, dimensionamiento y retención siguen siendo propuestas.

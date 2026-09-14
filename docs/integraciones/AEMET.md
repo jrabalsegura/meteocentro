@@ -1,0 +1,17 @@
+# Contrato observado de AEMET OpenData
+
+Consulta real el 14-9-2026 con una clave local ya existente. Se verificaron por separado observación actual, inventario y un día de climatología. La integración de ingesta continua pertenece a la fase 2.
+
+La [especificación OpenData](https://opendata.aemet.es/dist/) documenta las tres rutas. Cada llamada produjo primero un JSON con `estado`, `descripcion`, `datos` y `metadatos`; las dos últimas son URL temporales descargadas a continuación. Se recibió HTTP 200 en ambas etapas. El diagnóstico valida el host antes de seguir la URL y nunca la imprime. La respuesta de datos requirió aceptar ISO-8859-1 además de UTF-8. Los metadatos describen campos y periodos; hay que conservar su versión o procedencia al normalizar.
+
+| Producto | Campos observados | Regla de significado |
+| --- | --- | --- |
+| Observación | `idema`, `lat`, `lon`, `fint`, `ta`, `hr`, `vv`, `prec`, `pacutp`, `pres`, `pres_nmar`, entre otros. Muchos opcionales son nulos. | `fint` es UTC. `ta` es instantánea en °C; `vv` media de los 10 min previos en m/s. `prec` y `pacutp` son **dos sensores alternativos** de precipitación de los 60 min previos, en mm: no sumarlos. `pres` es presión de estación; `pres_nmar` es reducida al mar, y no deben mezclarse. Los periodos dependen del campo, no del intervalo de consulta. |
+| Inventario | `indicativo`, `nombre`, `provincia`, `latitud`, `longitud`, `altitud`, `indsinop`. | Las coordenadas están en texto sexagesimal con hemisferio, distinto de las coordenadas decimales de observación. El inventario climatológico no es el catálogo completo de estaciones que emiten ahora. |
+| Diario | `indicativo`, `fecha`, `tmax`, `tmin`, `tmed`, `prec`, `racha`, `velmedia`, `presMax`, `presMin`, etc. | La muestra de `2462` fue un único resumen de 4-9-2026. Los metadatos de este producto definen `prec` como precipitación diaria **de 07 a 07**, que no se etiquetará como día civil de Madrid sin expresar la ventana. Las horas de extremos y la cobertura necesitan interpretación propia. |
+
+En la consulta de observación de las 10:29 UTC había 10.039 filas y 855 IDs únicos; 49 IDs estaban dentro de las cuatro provincias por coordenadas. El inventario devolvió 926 registros; 55 tienen coordenadas dentro de los polígonos. Los totales son instantáneas de productos distintos, no cobertura estable ni equivalencia de estaciones. `prec` nulo apareció en 278 de las 10.039 filas, y `pres` nulo en 6.397: nulo no equivale a 0. Se detectaron tres coordenadas no interpretables en el inventario; esos registros deben ir a revisión si interesan. La comparación de nombre de provincia con geometría puede discrepar, y prevalecerá la geometría verificada.
+
+La [nota legal de AEMET](https://www.aemet.es/es/nota_legal) permite reutilización comercial y no comercial con atribución, mantenimiento del significado, fecha de actualización y metadatos aplicables. La clave local respondió correctamente. Su campo JWT `exp`, inspeccionado sin revelar el token, indica **31-10-2026 11:22:47 UTC**; la validez efectiva puede cambiar antes y debe vigilarse. La [FAQ de OpenData](https://opendata.aemet.es/centrodedescargas/faqs) publica 40 consultas API/minuto de límite general y advierte restricciones adicionales por producto.
+
+No se probaron meses o años de importación, antigüedad máxima, disponibilidad sostenida ni un archivo horario antiguo. Tampoco se guardó ninguna respuesta real en Git. Los IDs de muestra y su clasificación figuran en la [matriz](MATRIZ_ACCESO.md).

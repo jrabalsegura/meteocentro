@@ -1,0 +1,5 @@
+# Polígonos provinciales
+
+`provinces-full.geojson.gz` contiene las cuatro geometrías completas descargadas el 14-9-2026 del [servicio OGC API Features del IGN](https://api-features.ign.es/collections/administrativeunit). Es la fuente para clasificar coordenadas WGS84. `provinces.geojson` es una reducción geométrica con tolerancia de 0,0002 grados **solo para dibujar**; no debe usarse para decidir si una estación fronteriza pertenece a una provincia. `provinces.provenance.json` registra URLs, IDs del IGN, fecha y SHA-256 del GeoJSON completo descomprimido. Se generaron con `python3 scripts/fetch_provinces.py`.
+
+Reconocimiento exigido para la obra derivada: **Obra derivada de BDLJE CC-BY 4.0 ign.es — © Organismo Autónomo Centro Nacional de Información Geográfica (CNIG)**. Fuente y [condiciones del CNIG](https://centrodedescargas.cnig.es/CentroDescargas/limites-municipales-provinciales-autonomicos). La simplificación puede alterar visualmente una frontera hasta la tolerancia indicada. La geometría completa conserva la frontera oficial recibida.

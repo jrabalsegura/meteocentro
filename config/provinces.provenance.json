@@ -1,0 +1,34 @@
+{
+  "retrieved_at": "2026-09-14T10:27:40.067002+00:00",
+  "source": [
+    {
+      "province_code": "05",
+      "name": "Ávila",
+      "url": "https://api-features.ign.es/collections/administrativeunit/items?nameunit=%C3%81vila&nationallevelname=Provincia&limit=2&f=json",
+      "ign_feature_id": 1174462
+    },
+    {
+      "province_code": "19",
+      "name": "Guadalajara",
+      "url": "https://api-features.ign.es/collections/administrativeunit/items?nameunit=Guadalajara&nationallevelname=Provincia&limit=2&f=json",
+      "ign_feature_id": 1174476
+    },
+    {
+      "province_code": "28",
+      "name": "Madrid",
+      "url": "https://api-features.ign.es/collections/administrativeunit/items?nameunit=Madrid&nationallevelname=Provincia&limit=2&f=json",
+      "ign_feature_id": 1174485
+    },
+    {
+      "province_code": "40",
+      "name": "Segovia",
+      "url": "https://api-features.ign.es/collections/administrativeunit/items?nameunit=Segovia&nationallevelname=Provincia&limit=2&f=json",
+      "ign_feature_id": 1174497
+    }
+  ],
+  "full_sha256": "4cd94b864dfd0169d0fb2ca4f02a223779ab5a506d221981cf75847679b5e56d",
+  "display_tolerance_degrees": 0.0002,
+  "classification_file": "provinces-full.geojson.gz",
+  "display_file": "provinces.geojson",
+  "license": "IGN/CNIG BDLJE CC-BY 4.0; derived work attribution required"
+}

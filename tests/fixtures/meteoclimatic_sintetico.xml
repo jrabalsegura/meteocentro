@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meteodata version="0.1">
+  <pubDate>Thu, 15 Jan 2026 12:15:00 +0000</pubDate>
+  <stations>
+    <station>
+      <id>ESXXX0000000000000A</id>
+      <location>Lugar inventado</location>
+      <pubDate>Thu, 15 Jan 2026 12:00:00 +0000</pubDate>
+      <QOS>0</QOS>
+      <stationdata>
+        <temperature><unit>C</unit><now>0.0</now></temperature>
+        <rain><unit>mm</unit><total>0.0</total></rain>
+      </stationdata>
+    </station>
+  </stations>
+</meteodata>

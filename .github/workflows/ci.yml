@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: meteocentro
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: meteocentro_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meteocentro -d meteocentro_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://meteocentro:ci_only_password@127.0.0.1:5432/meteocentro_test
+      DATABASE_URL: postgresql+psycopg://meteocentro:ci_only_password@127.0.0.1:5432/meteocentro_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.13'
+      - name: Install locked backend
+        run: uv sync --locked --python python3.13
+        working-directory: backend
+      - name: Lint and format
+        run: |
+          backend/.venv/bin/ruff check backend/src tests/test_phase1.py
+          backend/.venv/bin/ruff format --check backend/src tests/test_phase1.py
+      - name: Migrations and tests on PostgreSQL
+        run: |
+          backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
+          backend/.venv/bin/alembic -c backend/alembic.ini check
+          backend/.venv/bin/pytest tests/test_phase1.py -q
+          python3 -m unittest discover -s tests -p test_phase0.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend

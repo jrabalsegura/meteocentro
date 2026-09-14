@@ -1,0 +1,9 @@
+.git
+.env
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+config/provinces.geojson
+config/provinces.provenance.json

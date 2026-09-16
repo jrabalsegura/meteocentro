@@ -37,7 +37,7 @@
 
 **Limitaciones:** piloto acotado, sin garantía de disponibilidad sostenida ni validación de cuota diaria del proveedor. Los dos ciclos posteriores al primero no recibieron nuevas publicaciones de AEMET: la incorporación de nuevas horas se demostró con fixtures, mientras que la repetición sin duplicados y los reinicios sí se comprobaron en el piloto real. La recuperación solo alcanza las horas todavía disponibles en el lote actual; los huecos antiguos permanecen identificados. Las revisiones conservan trazabilidad, pero los agregados e importación climatológica pertenecen a fases posteriores. No hay panel web operativo ni administración. Podman/Quadlet sigue sin probarse en este equipo. Los avisos de deprecación de Starlette/TestClient no impiden las pruebas y no se han cambiado versiones para silenciarlos. No se han versionado claves, respuestas reales, bases ni configuración privada, ni se ha realizado despliegue o activado Meteoclimatic/Wunderground.
 
-**Siguiente paso:** fase 3, después de resolver condiciones de reutilización y coordenadas de Meteoclimatic. El arranque permanente y los servicios del servidor corresponden a fase 7. Entrega preparada en la rama `codex/fase-2-aemet-worker` para una pull request contra `main`, solicitada por el usuario.
+**Siguiente paso:** fase 3, después de resolver condiciones de reutilización y coordenadas de Meteoclimatic. El arranque permanente y los servicios del servidor corresponden a fase 7. Entrega en la rama `codex/fase-2-aemet-worker`, mediante la [PR #2 — Fase 2: ingestión AEMET y worker persistente y reanudable](https://github.com/jrabalsegura/meteocentro/pull/2), abierta contra `main`. Las comprobaciones de GitHub Actions se consultan en la PR.
 
 ## Registro de fase 1 — 14 de septiembre de 2026
 

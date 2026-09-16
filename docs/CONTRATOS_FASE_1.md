@@ -23,3 +23,7 @@ Cada métrica del contrato Python `NormalizedObservation` lleva valor canónico,
 Los adaptadores comparten `Capabilities` y métodos `discover`, `fetch_current`, `fetch_history`. Un método no disponible devuelve `unsupported`, distinguible de una respuesta `ok` vacía y de `pending_access` o `pending_terms`. El punto de entrada del worker es independiente de la API; en fase 1 todavía no programa trabajos.
 
 La clasificación usa polígonos completos del IGN para Madrid, Ávila, Segovia y Guadalajara. Se aplica `covers`; si un punto cae exactamente en un límite compartido, se escoge el código provincial menor para obtener un resultado determinista. Para coordenadas mostradas solo a minutos, `classify_minute_precision_location` exige que el rectángulo de incertidumbre de ±1 minuto esté contenido entero en una provincia; si no, devuelve `None` y requiere revisión. No se consulta automáticamente ninguna ficha externa.
+
+## Evolución en fase 2
+
+La migración `0002_aemet_worker` añade programación, arrendamientos, reservas de cuota y versiones de metadatos. Se han implementado la ingestión idempotente, revisiones y últimos valores. `freshness` admite ahora `historical_only` para orígenes presentes únicamente en el inventario; AEMET usa una tolerancia de 90 minutos sobre la hora observada, coherente con la cadencia horaria vista. Se añade `interval_mean` al contrato de métricas para el viento medio de diez minutos. El resto de rutas y límites se conserva. Detalles y comandos en [OPERACION_FASE_2.md](OPERACION_FASE_2.md).

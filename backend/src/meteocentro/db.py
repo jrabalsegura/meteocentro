@@ -9,7 +9,14 @@ from meteocentro.config import get_settings
 
 @lru_cache
 def get_engine():
-    return create_engine(get_settings().database_url, pool_pre_ping=True)
+    return create_engine(
+        get_settings().database_url,
+        pool_pre_ping=True,
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000",
+        },
+    )
 
 
 def get_session() -> Iterator[Session]:

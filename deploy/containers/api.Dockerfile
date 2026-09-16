@@ -8,4 +8,5 @@ COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
 COPY config/provinces-full.geojson.gz /app/config/provinces-full.geojson.gz
 ENV PATH="/app/backend/.venv/bin:${PATH}"
+ENV PROVINCES_PATH="/app/config/provinces-full.geojson.gz"
 CMD ["uvicorn", "meteocentro.api:app", "--host", "0.0.0.0", "--port", "8000"]

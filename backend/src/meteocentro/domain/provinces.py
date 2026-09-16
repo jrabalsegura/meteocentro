@@ -1,11 +1,16 @@
 import gzip
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
 from shapely.geometry import Point, box, shape
 
-DEFAULT_PATH = Path(__file__).resolve().parents[4] / "config/provinces-full.geojson.gz"
+DEFAULT_PATH = Path(
+    os.environ.get(
+        "PROVINCES_PATH", Path(__file__).resolve().parents[4] / "config/provinces-full.geojson.gz"
+    )
+)
 ALLOWED_CODES = frozenset({"05", "19", "28", "40"})
 
 

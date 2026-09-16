@@ -1,5 +1,10 @@
 .git
 .env
+.env.*
+runtime
+data
+backups
+logs
 **/.venv
 **/node_modules
 **/__pycache__

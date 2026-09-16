@@ -37,13 +37,13 @@ jobs:
         working-directory: backend
       - name: Lint and format
         run: |
-          backend/.venv/bin/ruff check backend/src tests/test_phase1.py
-          backend/.venv/bin/ruff format --check backend/src tests/test_phase1.py
+          backend/.venv/bin/ruff check backend/src tests/conftest.py tests/test_phase1.py tests/test_phase2.py
+          backend/.venv/bin/ruff format --check backend/src tests/conftest.py tests/test_phase1.py tests/test_phase2.py
       - name: Migrations and tests on PostgreSQL
         run: |
           backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
           backend/.venv/bin/alembic -c backend/alembic.ini check
-          backend/.venv/bin/pytest tests/test_phase1.py -q
+          backend/.venv/bin/pytest tests/test_phase1.py tests/test_phase2.py -q
           python3 -m unittest discover -s tests -p test_phase0.py
 
   frontend:

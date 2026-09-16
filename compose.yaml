@@ -57,6 +57,25 @@ services:
       api:
         condition: service_healthy
 
+  worker:
+    profiles: ["ingestion"]
+    build:
+      context: .
+      dockerfile: deploy/containers/api.Dockerfile
+    command: ["python", "-m", "meteocentro.worker"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://meteocentro:${POSTGRES_PASSWORD}@db:5432/meteocentro
+      AEMET_API_KEY: ${AEMET_API_KEY:-}
+      AEMET_POLL_SECONDS: ${AEMET_POLL_SECONDS:-900}
+      AEMET_DAILY_HTTP_BUDGET: ${AEMET_DAILY_HTTP_BUDGET:-400}
+      AEMET_CURRENT_RESERVE: ${AEMET_CURRENT_RESERVE:-220}
+      AEMET_MINUTE_HTTP_BUDGET: ${AEMET_MINUTE_HTTP_BUDGET:-20}
+      AEMET_CONCURRENCY: ${AEMET_CONCURRENCY:-1}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:
   frontend_node_modules:

@@ -241,6 +241,7 @@ class AuditEvent(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (Index("ix_jobs_due", "status", "next_run_at"),)
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
     kind: Mapped[str] = mapped_column(String(80))
     provider_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("providers.id"))
@@ -249,6 +250,11 @@ class Job(Base):
     next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cursor: Mapped[dict | None] = mapped_column(JSONB)
+    dedupe_key: Mapped[str | None] = mapped_column(String(160), unique=True)
+    owner_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    priority: Mapped[int] = mapped_column(Integer, server_default="0")
+    interval_seconds: Mapped[int] = mapped_column(Integer, server_default="900")
 
 
 class IngestionRun(Base):
@@ -260,6 +266,35 @@ class IngestionRun(Base):
     status: Mapped[str] = mapped_column(String(30))
     result: Mapped[dict] = mapped_column(JSONB, default=dict)
     error_code: Mapped[str | None] = mapped_column(String(100))
+    owner_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+
+
+class ProviderRuntime(Base):
+    """Shared, durable budget. Every HTTP attempt is reserved before sending."""
+
+    __tablename__ = "provider_runtime"
+    provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("providers.id"), primary_key=True)
+    day_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    day_calls: Mapped[int] = mapped_column(Integer, default=0)
+    recent_calls: Mapped[list] = mapped_column(JSONB, default=list)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pause_reason: Mapped[str | None] = mapped_column(String(100))
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_new_data_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    newest_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProductMetadata(Base):
+    __tablename__ = "product_metadata"
+    __table_args__ = (
+        UniqueConstraint("provider_id", "product", "payload_hash", name="uq_product_metadata"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("providers.id"))
+    product: Mapped[str] = mapped_column(String(100))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fields: Mapped[list] = mapped_column(JSONB)
 
 
 class AdminUser(Base):

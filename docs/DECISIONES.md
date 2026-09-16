@@ -10,7 +10,7 @@ Fecha inicial: 9 de septiembre de 2026. Registrar aquí cambios de criterio para
 - Posibilidad de eliminar estaciones que el administrador considere erróneas.
 - Descubrimiento periódico de nuevas estaciones y recogida automática de observaciones.
 - Despliegue en contenedores Podman en el servidor habitual mediante SSH.
-- Se solicitaron después las fases 0 y 1; el despliegue remoto sigue sin solicitarse.
+- Se solicitaron las fases 0, 1 y 2; el despliegue remoto sigue sin solicitarse.
 - Las coordenadas públicas de Meteoclimatic mostradas a minutos son suficientemente precisas para situar aproximadamente una estación en el mapa; no se exige precisión a segundos. Los casos cercanos a un límite provincial siguen requiriendo revisión.
 
 ## Propuestas de trabajo
@@ -48,3 +48,12 @@ Estas son decisiones técnicas propuestas, no preferencias adicionales atribuida
 El usuario podrá cambiar la retención, pero el proyecto no debe activar una purga que reduzca el archivo existente sin dejar claros sus efectos.
 
 La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.md). Se conserva la arquitectura de proveedores para que esta decisión sea reversible sin rehacer el mapa ni los históricos.
+
+## Decisiones menores de fase 2 — 16 de septiembre de 2026
+
+- Cola y cuotas compartidas en PostgreSQL; liderazgo durante cada transacción de programación, propietario con arrendamiento y confirmación separada de los lotes guardados. No se añade otro servicio de colas.
+- Contar todos los GET HTTP, no solo el sobre API: 400 diarios, 20 por minuto y reserva de 220 para observaciones. Son límites locales conservadores, ajustables; no hay gasto contratado.
+- Prioridad de `prec` y alternativa `pacutp`, conservando ambos valores en calidad. No sumar sensores ni calcular diarios en esta fase.
+- Metadatos versionados por hash y refrescados cada 24 horas; pausar si cambian las unidades o periodos consumidos. Campos meteorológicos adicionales e importación climatológica quedan para incrementos posteriores.
+- Catálogo por unión de IDs, con capacidad histórica explícita y sin reactivar exclusiones. Un desplazamiento superior a 0,002 grados exige revisión; el inventario no sustituye automáticamente la posición actual.
+- Perfil local `ingestion` explícito en Compose. La clave AEMET solo se entrega al worker. Una aprobación expresa en esta tarea permite usar temporalmente la clave de Radar App para el piloto limitado, sin copiarla a configuración ni a Git.

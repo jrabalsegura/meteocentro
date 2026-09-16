@@ -15,3 +15,13 @@ En la consulta de observación de las 10:29 UTC había 10.039 filas y 855 IDs ú
 La [nota legal de AEMET](https://www.aemet.es/es/nota_legal) permite reutilización comercial y no comercial con atribución, mantenimiento del significado, fecha de actualización y metadatos aplicables. La clave local respondió correctamente. Su campo JWT `exp`, inspeccionado sin revelar el token, indica **31-10-2026 11:22:47 UTC**; la validez efectiva puede cambiar antes y debe vigilarse. La [FAQ de OpenData](https://opendata.aemet.es/centrodedescargas/faqs) publica 40 consultas API/minuto de límite general y advierte restricciones adicionales por producto.
 
 No se probaron meses o años de importación, antigüedad máxima, disponibilidad sostenida ni un archivo horario antiguo. Tampoco se guardó ninguna respuesta real en Git. Los IDs de muestra y su clasificación figuran en la [matriz](MATRIZ_ACCESO.md).
+
+## Integración de fase 2 — 16-9-2026
+
+Se han vuelto a resolver los dos productos y sus metadatos reales. Las reglas anteriores siguen siendo válidas. La cabecera `api_key` fue aceptada para el sobre inicial; las descargas de datos y metadatos no recibieron esa cabecera. El inventario conserva coordenadas sexagesimales y la observación usa decimales. No se han identificado nuevos centinelas numéricos autorizados: los nulos se conservan y los valores no interpretables se rechazan o marcan, sin asignarles un significado supuesto.
+
+La instantánea actual tuvo 10.479 registros y el inventario 926. En el ámbito hubo 49 IDs actuales y 55 de inventario, con una unión de 59. En los intervalos entre registros consecutivos de la respuesta nacional se observaron 9.633 separaciones de una hora y dos de dos horas; esto respalda una cadencia horaria observada y también demuestra huecos. No es una promesa de cobertura o frescura por estación.
+
+Los hashes canónicos de `campos` usados por el normalizador fueron `56ea843b6f034efdd31a10ea4c05598cd41a9e22322434dd7fd91558cae09285` para observación y `7d3fcd3b878506991baa20cdb9906f0d8976104d8ede9618f44bc2cb1741d281` para inventario. Son referencias de metadatos, no claves. El worker guarda las definiciones y su hash en PostgreSQL, acepta ISO-8859-1 y verifica las unidades y los periodos consumidos; no guarda las URL temporales.
+
+La prueba real y el contraste de las cuatro provincias figuran en [ESTADO.md](../ESTADO.md). La política de cuotas, pausas, recuperación y comandos está en [OPERACION_FASE_2.md](../OPERACION_FASE_2.md). El acceso climatológico diario permanece verificado por fase 0, sin importador nuevo en fase 2.

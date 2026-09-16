@@ -48,7 +48,7 @@ class StationRead(BaseModel):
     latitude: float | None
     longitude: float | None
     altitude_m: float | None
-    freshness: Literal["fresh", "stale", "unknown"]
+    freshness: Literal["fresh", "stale", "unknown", "historical_only"]
 
 
 class SourceRead(BaseModel):
@@ -138,15 +138,32 @@ def ready(db: DbSession):
     return {"status": "ready", "schema_revision": revision}
 
 
-def freshness(db: Session, station_id: UUID) -> Literal["fresh", "stale", "unknown"]:
-    latest = db.scalar(
-        select(func.max(LatestObservation.observed_at)).where(
-            LatestObservation.source_id.in_(eligible_source_ids(station_id))
+def freshness(
+    db: Session, station_id: UUID
+) -> Literal["fresh", "stale", "unknown", "historical_only"]:
+    sources = db.execute(
+        select(StationSource, Provider)
+        .join(Provider)
+        .where(StationSource.id.in_(eligible_source_ids(station_id)))
+    ).all()
+    if sources and all(
+        source.capabilities.get("daily_history") and not source.capabilities.get("current")
+        for source, _ in sources
+    ):
+        return "historical_only"
+    has_data = False
+    for source, provider in sources:
+        latest = db.scalar(
+            select(func.max(LatestObservation.observed_at)).where(
+                LatestObservation.source_id == source.id
+            )
         )
-    )
-    if latest is None:
-        return "unknown"
-    return "fresh" if latest >= datetime.now(UTC) - timedelta(minutes=60) else "stale"
+        if latest is not None:
+            has_data = True
+            threshold = provider.capabilities.get("stale_after_seconds", 3600)
+            if latest >= datetime.now(UTC) - timedelta(seconds=threshold):
+                return "fresh"
+    return "stale" if has_data else "unknown"
 
 
 def station_read(db: Session, station: Station) -> StationRead:

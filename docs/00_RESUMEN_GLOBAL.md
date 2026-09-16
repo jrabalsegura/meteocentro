@@ -10,6 +10,8 @@ La propuesta utiliza una base de datos propia y un proceso de recogida permanent
 
 **Comprobación de fase 0, 14 de septiembre de 2026:** una clave AEMET local facilitada por el proyecto Radar App funcionó en observación, inventario y un día climatológico. El feed XML de Meteoclimatic también respondió, pero su licencia y la falta de coordenadas en el XML impiden dar por aprobada su ingestión y publicación en esta app. Ver la [matriz de acceso](integraciones/MATRIZ_ACCESO.md) y el [estado](ESTADO.md). Esta actualización no implica que haya aplicación implementada.
 
+**Actualización de fase 2, 16 de septiembre de 2026:** implementados el adaptador AEMET, el worker independiente con programación persistente, cuotas, recuperación y exclusión concurrente. El piloto local completó tres ciclos de observación y un inventario; los ciclos posteriores al primero no recibieron nuevas publicaciones. No se han activado otras redes ni desplegado en remoto. Pruebas, contadores y limitaciones en [ESTADO.md](ESTADO.md).
+
 ## Alcance geográfico y fuentes
 
 | Provincia | Código provincial | Inclusión |

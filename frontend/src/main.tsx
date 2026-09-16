@@ -6,10 +6,16 @@ type Station = {
   id: string
   name: string
   province_code: string | null
-  freshness: 'fresh' | 'stale' | 'unknown'
+  freshness: 'fresh' | 'stale' | 'unknown' | 'historical_only'
 }
 
 type StationPage = { items: Station[]; total: number }
+const freshnessLabels = {
+  fresh: 'Datos recientes',
+  stale: 'Datos desactualizados',
+  unknown: 'Sin observaciones',
+  historical_only: 'Solo históricos',
+}
 
 function App() {
   const [stations, setStations] = useState<Station[]>([])
@@ -39,16 +45,16 @@ function App() {
       <header>
         <div className="eyebrow">Madrid · Ávila · Segovia · Guadalajara</div>
         <h1>Meteocentro</h1>
-        <p>Base de desarrollo · fase 1</p>
+        <p>Estaciones de las cuatro provincias</p>
       </header>
       <section className="notice" aria-label="Estado de los datos">
-        <strong>Sin datos meteorológicos de demostración</strong>
-        <span>AEMET y Meteoclimatic aún no están conectados al worker. Esta pantalla solo muestra registros reales de la base local.</span>
+        <strong>Archivo local de AEMET</strong>
+        <span>Las estaciones y sus datos se muestran cuando están disponibles en el archivo. Meteoclimatic aún no está incorporado.</span>
       </section>
       <section>
         <h2>Estaciones</h2>
         <p role="status">{status}</p>
-        {stations.length > 0 && <ul>{stations.map(station => <li key={station.id}>{station.name} · {station.province_code ?? 'Provincia pendiente'} · {station.freshness}</li>)}</ul>}
+        {stations.length > 0 && <ul>{stations.map(station => <li key={station.id}>{station.name} · {station.province_code ?? 'Provincia pendiente'} · {freshnessLabels[station.freshness]}</li>)}</ul>}
       </section>
     </main>
   )

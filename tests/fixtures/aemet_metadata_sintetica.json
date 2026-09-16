@@ -1,0 +1,22 @@
+{
+  "current": [
+    {"id":"idema","descripcion":"Identidad sintética"},
+    {"id":"lat","descripcion":"Latitud grados"},
+    {"id":"lon","descripcion":"Longitud grados"},
+    {"id":"fint","descripcion":"Hora UTC"},
+    {"id":"ta","descripcion":"Temperatura instantánea grados Celsius"},
+    {"id":"hr","descripcion":"Humedad instantánea %"},
+    {"id":"vv","descripcion":"Media durante los 10 minutos anteriores (m/s)"},
+    {"id":"prec","descripcion":"Pluviómetro, 60 minutos anteriores (mm)"},
+    {"id":"pacutp","descripcion":"Disdrómetro, 60 minutos anteriores (mm)"},
+    {"id":"pres","descripcion":"Presión al nivel del barómetro (hPa)"},
+    {"id":"pres_nmar","descripcion":"Presión reducida al nivel del mar (hPa)"}
+  ],
+  "inventory": [
+    {"id":"indicativo","descripcion":"Identidad sintética"},
+    {"id":"nombre","descripcion":"Nombre"},
+    {"id":"latitud","descripcion":"Latitud"},
+    {"id":"longitud","descripcion":"Longitud"},
+    {"id":"altitud","descripcion":"Altitud"}
+  ]
+}

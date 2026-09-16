@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class MetricKind(StrEnum):
     INSTANT = "instant"
+    INTERVAL_MEAN = "interval_mean"
     INTERVAL_TOTAL = "interval_total"
     DAILY_COUNTER = "daily_counter"
     ROLLING_TOTAL = "rolling_total"

@@ -44,13 +44,17 @@ Ejemplo de presupuesto: 300 IDs WU consultados individualmente cada 10 minutos r
 
 - Adaptador Meteoclimatic, catálogo unificado, trabajos de descubrimiento y alta manual por ID. WU no es un entregable obligatorio.
 - Resumen por ejecución: nuevos, actualizados, fuera de ámbito, excluidos, duplicados potenciales y pendientes.
-- [ ] Repetir un descubrimiento no duplica estaciones.
-- [ ] Una estación excluida no se reactiva ni vuelve a programarse.
-- [ ] Un origen con API denegada queda aislado y muestra su limitación.
-- [ ] Una caída del feed no borra el catálogo.
-- [ ] No se programa ni consulta WU en la primera versión. Si se reactiva, su presupuesto no se supera, incluso con reintentos.
-- [ ] Los registros de unidades y lluvia coinciden con muestras verificadas.
-- [ ] Hay prueba real separada para cada red habilitada; cualquier red pendiente mantiene su estado pendiente.
+- [x] Repetir un descubrimiento no duplica estaciones (fixtures + PostgreSQL, 16-9-2026).
+- [x] Una estación excluida no se reactiva ni vuelve a programarse (fixtures + PostgreSQL, también ID previo al alta).
+- [x] Un origen con API denegada queda aislado y muestra su limitación (HTTP sintético y API local).
+- [x] Una caída del feed no borra el catálogo (HTTP sintético y archivo PostgreSQL).
+- [x] No se programa ni consulta WU en la primera versión. Si se reactiva, su presupuesto no se supera, incluso con reintentos.
+- [x] Los registros de unidades y lluvia coinciden con muestras verificadas (52 comparaciones sobre XML real; contador diario, horario desconocido explícito).
+- [x] Hay prueba real separada para cada red habilitada: AEMET en fase 2 y Meteoclimatic en fase 3; no se declara disponibilidad sostenida a partir de esos pilotos.
+
+## Resultado de implementación — 16 de septiembre de 2026
+
+Fase completada para uso local privado no comercial, con licencia publicada, atribución y originales preservados. Catálogo real de 143 fichas: 131 posiciones aptas y 12 en revisión. Ingesta real, repetición local idempotente, cuotas y reinicio documentados en [ESTADO.md](../ESTADO.md). Presión relativa resuelta; lluvia y extremos diarios conservan horario desconocido explícito y no se suman como incrementos. La exposición externa y los agregados se revisarán en sus fases. El XML se consulta cada 15 minutos; el catálogo comparte sus identidades y completa metadatos con fichas cacheadas. RSS no añade una capacidad necesaria y WU sigue aplazado.
 
 ## Prompt para Codex
 

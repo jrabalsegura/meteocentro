@@ -12,6 +12,8 @@ La propuesta utiliza una base de datos propia y un proceso de recogida permanent
 
 **Actualización de fase 2, 16 de septiembre de 2026:** implementados el adaptador AEMET, el worker independiente con programación persistente, cuotas, recuperación y exclusión concurrente. El piloto local completó tres ciclos de observación y un inventario; los ciclos posteriores al primero no recibieron nuevas publicaciones. No se han activado otras redes ni desplegado en remoto. Pruebas, contadores y limitaciones en [ESTADO.md](ESTADO.md).
 
+**Actualización de fase 3, 16 de septiembre de 2026:** implementados el lector Meteoclimatic, el catálogo común y las cuotas/pausas por red sobre el worker existente. El diagnóstico XML real procesó 1.539 estaciones, pero no se ha activado la ingesta: términos, coordenadas autorizadas y semántica diaria/presión siguen pendientes. WU permanece aplazado. Detalles y distinción entre fixtures y pruebas reales en [ESTADO.md](ESTADO.md).
+
 ## Alcance geográfico y fuentes
 
 | Provincia | Código provincial | Inclusión |
@@ -73,7 +75,7 @@ Si una estación física emite a dos redes, se guardan ambos identificadores baj
 | Trabajo | Frecuencia inicial propuesta | Condición |
 | --- | --- | --- |
 | Observaciones AEMET | Cada 15 minutos, preferentemente por lote | Ajustable a publicación y cuota; consultar más no aumenta la resolución original |
-| Observaciones Meteoclimatic | Cada 10 minutos por ámbito | Ajustar al feed, sus indicaciones y las condiciones de acceso |
+| Observaciones Meteoclimatic | Cada 15 minutos, XML nacional | Licencia publicada para uso local no comercial; conservar atribución y originales |
 | Observaciones Wunderground si se reactiva la ampliación | Cada 10–15 minutos por estación habilitada | Desactivadas en la primera versión |
 | Catálogo AEMET y Meteoclimatic | Una vez al día | Diferencias con el catálogo anterior, sin eliminar por una ausencia temporal |
 | Descubrimiento Wunderground si se reactiva la ampliación | Una vez a la semana | Desactivado en la primera versión; no garantiza cobertura exhaustiva |
@@ -173,4 +175,4 @@ Las ocho fases están enlazadas en [README.md](../README.md). La fase 2 ya permi
 
 La primera versión estará completa cuando el mapa y los históricos funcionen con AEMET y Meteoclimatic, ambas hayan pasado las pruebas reales de acceso e ingestión, y se demuestre que una exclusión sobrevive a un descubrimiento, a un trabajo en curso y a un reinicio. Si alguna de esas dos redes no está verificada, se indicará que la entrega es parcial. Wunderground figura como ampliación aplazada y no forma parte de este criterio de cierre.
 
-Quedan por concretar la renovación de la clave AEMET antes de su caducidad, las condiciones de uso de los productos de Meteoclimatic, el dominio final, la exposición pública y la antigüedad que se desea importar. El acceso Wunderground se revisará solo si se decide incorporar esa ampliación. Las propuestas y la forma de resolver estas decisiones figuran en [DECISIONES.md](DECISIONES.md).
+Quedan por concretar la renovación de la clave AEMET antes de su caducidad, el alcance de publicación externa y la importación diaria de Meteoclimatic, el dominio final, la exposición pública y la antigüedad que se desea importar. El acceso Wunderground se revisará solo si se decide incorporar esa ampliación. Las propuestas y la forma de resolver estas decisiones figuran en [DECISIONES.md](DECISIONES.md).

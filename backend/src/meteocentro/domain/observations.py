@@ -12,6 +12,8 @@ class MetricKind(StrEnum):
     INTERVAL_MEAN = "interval_mean"
     INTERVAL_TOTAL = "interval_total"
     DAILY_COUNTER = "daily_counter"
+    DAILY_MINIMUM = "daily_minimum"
+    DAILY_MAXIMUM = "daily_maximum"
     ROLLING_TOTAL = "rolling_total"
     RATE = "rate"
     STATION_PRESSURE = "station_pressure"
@@ -28,6 +30,7 @@ class Measurement(BaseModel):
     original_unit: str | None = None
     provider_quality: str | None = None
     plausibility_flags: list[str] = Field(default_factory=list)
+    period_basis: str | None = None
 
 
 class NormalizedObservation(BaseModel):

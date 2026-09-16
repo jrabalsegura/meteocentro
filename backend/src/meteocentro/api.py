@@ -17,6 +17,7 @@ from meteocentro.models import (
     LatestObservation,
     Observation,
     Provider,
+    ProviderRuntime,
     Station,
     StationSource,
 )
@@ -57,6 +58,8 @@ class SourceRead(BaseModel):
     external_id: str
     status: str
     capabilities: dict
+    source_url: str | None = None
+    coordinate_precision: str | None = None
 
 
 class StationDetail(StationRead):
@@ -136,6 +139,32 @@ def ready(db: DbSession):
     if revision != EXPECTED_REVISION:
         raise HTTPException(status_code=503, detail={"code": "schema_mismatch"})
     return {"status": "ready", "schema_revision": revision}
+
+
+@app.get("/api/v1/providers")
+def providers(db: DbSession):
+    """Operational availability without credentials, permission references or raw errors."""
+    rows = db.execute(
+        select(Provider, ProviderRuntime).outerjoin(ProviderRuntime).order_by(Provider.code)
+    ).all()
+    return {
+        "items": [
+            {
+                "code": provider.code,
+                "name": provider.name,
+                "status": provider.status,
+                "limitation": runtime.pause_reason if runtime else None,
+                "last_polled_at": runtime.last_polled_at if runtime else None,
+                "attribution": "Meteoclimatic y sus colaboradores"
+                if provider.code == "meteoclimatic"
+                else provider.name,
+                "license_url": "https://creativecommons.org/licenses/by-nc-nd/3.0/"
+                if provider.code == "meteoclimatic"
+                else provider.terms_url,
+            }
+            for provider, runtime in rows
+        ]
+    }
 
 
 def freshness(
@@ -236,6 +265,10 @@ def station_detail(station_id: UUID, db: DbSession):
                 external_id=source.external_id,
                 status=source.status,
                 capabilities=source.capabilities,
+                source_url=f"https://www.meteoclimatic.net/perfil/{source.external_id}"
+                if code == "meteoclimatic"
+                else None,
+                coordinate_precision=source.source_metadata.get("precision"),
             )
             for source, code in sources
         ],

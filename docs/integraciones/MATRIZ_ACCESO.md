@@ -1,6 +1,8 @@
-# Matriz de acceso y viabilidad, fase 0
+# Matriz de acceso y viabilidad
 
-Comprobación del 14 de septiembre de 2026, 10:25–10:30 UTC. `verified` significa respuesta real del producto indicado, no ingestión ni permiso general para publicar cualquier derivado. Las consultas se hicieron con [el diagnóstico local](../../scripts/diagnose_sources.py), sin conservar respuestas brutas, URL temporales ni claves. La clave AEMET se leyó solo en memoria desde la configuración local de Radar App. No hay aplicación ni trabajo periódico activo.
+**La tabla inicial registra la fase 0; el estado vigente está en la actualización de fase 3 al final.**
+
+Comprobación del 14 de septiembre de 2026, 10:25–10:30 UTC. `verified` significa respuesta real del producto indicado, no ingestión ni permiso general para publicar cualquier derivado. Las consultas se hicieron con [el diagnóstico local](../../scripts/diagnose_sources.py), sin conservar respuestas brutas, URL temporales ni claves. La clave AEMET se leyó solo en memoria desde la configuración local de Radar App. En aquella comprobación todavía no había aplicación ni trabajo periódico activo; la evolución posterior está en ESTADO.md.
 
 | Fuente y producto | Vía y autenticación | Resultado real | Cobertura/periodo observado | Conservación y publicación | Estado |
 | --- | --- | --- | --- | --- | --- |
@@ -35,3 +37,19 @@ Si se consulta AEMET por lote cada 15 minutos: 96 peticiones a la API por día p
 Si se autorizase Meteoclimatic, un solo XML nacional cada 15 minutos implicaría 96 GET diarios. Su propia [guía de estaciones](https://www.meteoclimatic.net/index/weatherlink_es.html) indica actualización de 15 minutos, por lo que consultar cada 10 no promete más resolución. Por ahora el presupuesto operativo para esa fuente es **cero**, salvo diagnósticos manuales, al estar `pending_terms`.
 
 Para el mapa se han localizado [WMTS de cartografía ráster y mapa base del IGN](https://www.ign.es/web/es/ign/portal/ide-area-nodo-ide-ign) como candidatos topográfico y claro. `GetCapabilities` respondió HTTP 200 en ambos servicios el 14-9-2026; el primero ofrecía `MTN`/`MTN_Fondo` y el segundo `IGNBase-gris`, `IGNBaseSimplificado` y otros. Falta verificar teselas concretas, atribución visible en la interfaz y capacidad reales en la fase 4. El servicio comunitario de [teselas OSM](https://operations.osmfoundation.org/policies/tiles/) tiene política propia y no se presupone como alojamiento ilimitado. La licencia de la geometría del IGN consta en [config/README.md](../../config/README.md).
+
+## Actualización vigente de fase 3 — 16 de septiembre de 2026
+
+| Producto | Implementación y comprobación | Estado vigente |
+| --- | --- | --- |
+| Meteoclimatic XML nacional | XML real, normalizador y worker común; piloto en PostgreSQL separado | Acceso e ingesta local bajo licencia publicada. Cifras y resultados reales en [ESTADO.md](../ESTADO.md) |
+| Meteoclimatic coordenadas | Fichas públicas por ID, coordenadas a minutos y altitud; caché de 30 días, robots y cuotas compartidas | Catálogo real; fronteras y dudas permanecen en revisión. La precisión a minutos está aceptada |
+| Meteoclimatic presión | BAR documentada como relativa; tipo separado `sea_level_pressure` | Referencia semántica resuelta; no se certifica calibración de cada estación |
+| Meteoclimatic lluvia y extremos | Contador/extremos diarios separados, originales y hora de estación conservados | `provider_day_timezone_unknown`: utilizables como valores reportados, sin sumar contadores ni afirmar diarios cerrados |
+| Meteoclimatic uso | Aviso legal y CC BY-NC-ND 3.0 aplicados al archivo local privado no comercial, con originales y atribución | No se ha obtenido permiso individual; revisar exposición externa y derivados antes de publicar |
+| AEMET | Clave copiada de Radar App al `.env` privado por petición expresa; no mostrada. Último diagnóstico: sobre y metadatos HTTP 200, timeout de datos, tres GET | El piloto completo de fase 2 sigue siendo la evidencia de ingesta real; no se presenta el diagnóstico parcial como nuevo éxito completo |
+| Wunderground | Sin adaptador, configuración ni trabajos | `deferred_cost`; no bloquea fase 3 |
+
+El presupuesto local Meteoclimatic es de **300 GET diarios, 20 por minuto y concurrencia uno**, con 110 reservados para actualidad. Incluye robots, fichas, XML, fallos y reintentos. No son cuotas prometidas por el proveedor. El régimen habitual del XML requiere 96 GET/día; las coordenadas se refrescan cada 30 días, y no en cada consulta meteorológica. Los robots se conservan 24 horas. Referencia y límites del uso en [el contrato vigente](METEOCLIMATIC.md); operación y desactivación en [OPERACION_FASE_3.md](../OPERACION_FASE_3.md).
+
+Las cifras y estados `pending_terms` anteriores son el registro de diagnósticos previos a esta revisión de licencia y a la incorporación del catálogo. La configuración privada queda habilitada para el alcance local; el ejemplo compartido exige activación explícita. El histórico diario importado y la publicación de derivados siguen siendo productos distintos, pendientes de su fase.

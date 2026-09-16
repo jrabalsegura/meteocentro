@@ -16,6 +16,8 @@ from meteocentro.db import get_engine
 from meteocentro.ingestion import Ingestor
 from meteocentro.ingestion_errors import IngestionError, LeaseLost
 from meteocentro.job_queue import Queue, db_now
+from meteocentro.meteoclimatic import MeteoclimaticAdapter, MeteoclimaticIngestor
+from meteocentro.meteoclimatic_catalog import MeteoclimaticCatalog
 from meteocentro.models import IngestionRun, Job, Provider, ProviderRuntime
 
 
@@ -44,19 +46,29 @@ class Heartbeat:
         self.thread.join(timeout=5)
 
 
-def run_claim(queue, claim, *, adapter_factory=AemetAdapter, after_chunk=None):
-    ingestor = Ingestor(queue, claim)
-    secret = queue.settings.aemet_api_key
-    adapter = adapter_factory(
-        secret.get_secret_value() if secret else None,
-        reserve=lambda: queue.reserve_http(claim),
-        get_metadata=ingestor.get_metadata,
-        save_metadata=ingestor.save_metadata,
-    )
+def run_claim(queue, claim, *, adapter_factory=None, after_chunk=None):
+    if queue.provider_code == "meteoclimatic":
+        ingestor = MeteoclimaticIngestor(queue, claim)
+        adapter = (adapter_factory or MeteoclimaticAdapter)(
+            terms_reference=queue.settings.meteoclimatic_terms_reference,
+            reserve=lambda: queue.reserve_http(claim),
+        )
+    else:
+        ingestor = Ingestor(queue, claim)
+        secret = queue.settings.aemet_api_key
+        adapter = (adapter_factory or AemetAdapter)(
+            secret.get_secret_value() if secret else None,
+            reserve=lambda: queue.reserve_http(claim),
+            get_metadata=ingestor.get_metadata,
+            save_metadata=ingestor.save_metadata,
+        )
     try:
         with Heartbeat(queue, claim):
-            batch = adapter.download(claim.kind)
-            result, cursor = ingestor.ingest(batch, after_chunk=after_chunk)
+            if queue.provider_code == "meteoclimatic" and claim.kind == "catalog":
+                result, cursor = MeteoclimaticCatalog(queue, claim, adapter).run()
+            else:
+                batch = adapter.download(claim.kind)
+                result, cursor = ingestor.ingest(batch, after_chunk=after_chunk)
             queue.succeed(claim, result, cursor)
         return {"status": "succeeded", "kind": claim.kind, "result": result}
     except IngestionError as error:
@@ -68,7 +80,7 @@ def run_claim(queue, claim, *, adapter_factory=AemetAdapter, after_chunk=None):
 
 def status(queue):
     with Session(queue.engine) as db:
-        provider = db.scalar(select(Provider).where(Provider.code == "aemet"))
+        provider = db.scalar(select(Provider).where(Provider.code == queue.provider_code))
         if not provider:
             return {"status": "not_configured"}
         runtime = db.get(ProviderRuntime, provider.id)
@@ -86,9 +98,17 @@ def status(queue):
             .limit(5)
         ).all()
         return {
+            "provider": provider.code,
             "status": provider.status,
+            "access_status": queue.access_status,
             "observation_age_seconds": age,
-            "data_state": ("no_data" if age is None else "stale" if age > 5400 else "fresh"),
+            "data_state": (
+                "no_data"
+                if age is None
+                else "stale"
+                if age > provider.capabilities.get("stale_after_seconds", 3600)
+                else "fresh"
+            ),
             "runtime": {
                 key: getattr(runtime, key)
                 for key in (
@@ -126,9 +146,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--once",
-        choices=("current", "inventory"),
+        choices=("current", "inventory", "catalog"),
         help="one due job; respects scheduling, leases and quotas",
     )
+    parser.add_argument("--provider", choices=("aemet", "meteoclimatic"))
     parser.add_argument("--status", action="store_true", help="local database only, no HTTP")
     parser.add_argument("--resume", action="store_true", help="clear credential/contract pause")
     parser.add_argument("--max-runs", type=int, help="stop after this many claimed jobs")
@@ -140,7 +161,15 @@ def main() -> int:
     except ValueError:
         emit(status="error", code="invalid_configuration")
         return 2
-    queue = Queue(get_engine(), settings)
+    queues = [
+        Queue(get_engine(), settings, code)
+        for code in ((args.provider,) if args.provider else ("aemet", "meteoclimatic"))
+    ]
+    # Preserve the original --once current/inventory behaviour unless a provider is selected.
+    if args.once and not args.provider:
+        queues = queues[:1]
+    if args.resume and not args.provider:
+        queues = queues[:1]
     stopped = Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.set())
@@ -148,19 +177,32 @@ def main() -> int:
     while not stopped.is_set():
         try:
             if args.status:
-                emit(**status(queue))
+                if args.provider:
+                    emit(**status(queues[0]))
+                else:
+                    emit(providers=[status(queue) for queue in queues])
                 return 0
-            queue.schedule()
+            for queue in queues:
+                queue.schedule()
             if args.resume:
-                queue.resume()
+                try:
+                    queues[0].resume()
+                except IngestionError as error:
+                    emit(status="paused", code=error.code)
+                    return 1
                 emit(status="resumed")
                 return 0
-            claim = queue.claim(args.once)
+            claim = None
+            for index in range(len(queues)):
+                queue = queues[(count + index) % len(queues)]
+                claim = queue.claim(args.once)
+                if claim:
+                    break
             report = {}
             if claim:
                 try:
                     report = run_claim(queue, claim)
-                    emit(**report)
+                    emit(provider=queue.provider_code, **report)
                 except LeaseLost:
                     emit(status="lease_lost")
                 except SQLAlchemyError:

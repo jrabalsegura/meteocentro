@@ -2,7 +2,21 @@ from uuid import UUID
 
 from sqlalchemy import exists, select
 
-from meteocentro.models import Exclusion, Station, StationSource
+from meteocentro.models import Exclusion, IdentityExclusion, Provider, Station, StationSource
+
+
+def permitted_source():
+    provider_allowed = StationSource.provider_id.in_(
+        select(Provider.id).where(Provider.status.in_(["verified", "paused"]))
+    )
+    identity_excluded = exists(
+        select(IdentityExclusion.id).where(
+            IdentityExclusion.provider_id == StationSource.provider_id,
+            IdentityExclusion.external_id == StationSource.external_id,
+            IdentityExclusion.revoked_at.is_(None),
+        )
+    )
+    return provider_allowed & ~identity_excluded
 
 
 def eligible_station_ids():
@@ -20,6 +34,7 @@ def eligible_station_ids():
         select(StationSource.id).where(
             StationSource.station_id == Station.id,
             StationSource.status == "enabled",
+            permitted_source(),
             ~source_excluded,
         )
     )
@@ -37,6 +52,7 @@ def eligible_source_ids(station_id: UUID):
     return select(StationSource.id).where(
         StationSource.station_id == station_id,
         StationSource.status == "enabled",
+        permitted_source(),
         ~source_excluded,
         StationSource.station_id.in_(eligible_station_ids()),
     )

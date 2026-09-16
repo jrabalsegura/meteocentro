@@ -29,8 +29,22 @@ class Claim:
 
 
 class Queue:
-    def __init__(self, engine, settings: Settings):
-        self.engine, self.settings = engine, settings
+    def __init__(self, engine, settings: Settings, provider_code="aemet"):
+        if provider_code not in {"aemet", "meteoclimatic"}:
+            raise ValueError("unsupported_provider")
+        self.engine, self.settings, self.provider_code = engine, settings, provider_code
+
+    def setting(self, name):
+        return getattr(self.settings, f"{self.provider_code}_{name}")
+
+    @property
+    def access_status(self):
+        if (
+            self.provider_code == "meteoclimatic"
+            and not self.settings.meteoclimatic_terms_reference
+        ):
+            return "pending_terms"
+        return "verified" if self.setting("enabled") else "disabled"
 
     def schedule(self):
         with Session(self.engine) as db, db.begin():
@@ -41,25 +55,31 @@ class Queue:
             provider_id = db.scalar(
                 insert(Provider)
                 .values(
-                    code="aemet",
-                    name="AEMET OpenData",
-                    status="verified",
+                    code=self.provider_code,
+                    name="AEMET OpenData" if self.provider_code == "aemet" else "Meteoclimatic",
+                    status=self.access_status,
                     capabilities={
                         "discover": True,
                         "current": True,
-                        "daily_history": True,
-                        "native_cadence_seconds": 3600,
-                        "stale_after_seconds": 5400,
+                        "daily_history": self.provider_code == "aemet",
+                        "native_cadence_seconds": 3600 if self.provider_code == "aemet" else 900,
+                        "stale_after_seconds": 5400 if self.provider_code == "aemet" else 2700,
                     },
-                    terms_url="https://www.aemet.es/es/nota_legal",
-                    poll_interval_seconds=self.settings.aemet_poll_seconds,
-                    daily_call_budget=self.settings.aemet_daily_http_budget,
+                    terms_url=(
+                        "https://www.aemet.es/es/nota_legal"
+                        if self.provider_code == "aemet"
+                        else "https://www.meteoclimatic.net/index/wp/cc_es.html"
+                    ),
+                    poll_interval_seconds=self.setting("poll_seconds"),
+                    daily_call_budget=self.setting("daily_http_budget"),
                 )
                 .on_conflict_do_nothing(index_elements=[Provider.code])
                 .returning(Provider.id)
             )
             if provider_id is None:
-                provider_id = db.scalar(select(Provider.id).where(Provider.code == "aemet"))
+                provider_id = db.scalar(
+                    select(Provider.id).where(Provider.code == self.provider_code)
+                )
             db.execute(
                 insert(ProviderRuntime)
                 .values(
@@ -70,18 +90,32 @@ class Queue:
                 )
                 .on_conflict_do_nothing()
             )
-            db.scalar(
+            state = db.scalar(
                 select(ProviderRuntime)
                 .where(ProviderRuntime.provider_id == provider_id)
                 .with_for_update()
             )
             provider = db.get(Provider, provider_id)
-            provider.poll_interval_seconds = self.settings.aemet_poll_seconds
-            provider.daily_call_budget = self.settings.aemet_daily_http_budget
-            for kind, priority, interval in (
-                ("current", 100, self.settings.aemet_poll_seconds),
-                ("inventory", 20, 86400),
-            ):
+            provider.poll_interval_seconds = self.setting("poll_seconds")
+            provider.daily_call_budget = self.setting("daily_http_budget")
+            provider.status = (
+                self.access_status
+                if self.access_status != "verified"
+                else ("paused" if state.pause_reason else "verified")
+            )
+            if self.provider_code == "meteoclimatic":
+                provider.capabilities = {
+                    **provider.capabilities,
+                    "terms_reference": self.settings.meteoclimatic_terms_reference,
+                }
+            if provider.status != "verified":
+                return
+            products = [("current", 100, self.setting("poll_seconds"))]
+            if self.provider_code == "aemet":
+                products.append(("inventory", 20, 86400))
+            else:
+                products.append(("catalog", 20, 60))
+            for kind, priority, interval in products:
                 db.execute(
                     insert(Job)
                     .values(
@@ -89,7 +123,7 @@ class Queue:
                         provider_id=provider_id,
                         status="pending",
                         next_run_at=now,
-                        dedupe_key=f"aemet:{kind}",
+                        dedupe_key=f"{self.provider_code}:{kind}",
                         priority=priority,
                         interval_seconds=interval,
                     )
@@ -102,8 +136,12 @@ class Queue:
 
     def claim(self, kind: str | None = None) -> Claim | None:
         with Session(self.engine) as db, db.begin():
-            provider = db.scalar(select(Provider).where(Provider.code == "aemet"))
-            if provider is None:
+            provider = db.scalar(select(Provider).where(Provider.code == self.provider_code))
+            if (
+                provider is None
+                or provider.status != "verified"
+                or self.access_status != "verified"
+            ):
                 return None
             state = db.scalar(
                 select(ProviderRuntime)
@@ -120,7 +158,7 @@ class Queue:
                     Job.provider_id == provider.id, Job.status == "running", Job.lease_until > now
                 )
             )
-            if running >= self.settings.aemet_concurrency:
+            if running >= (self.settings.aemet_concurrency if self.provider_code == "aemet" else 1):
                 return None
             query = select(Job).where(
                 Job.provider_id == provider.id,
@@ -166,6 +204,9 @@ class Queue:
         job = db.scalar(select(Job).where(Job.id == claim.job_id).with_for_update())
         if (
             job.status != "running"
+            or db.scalar(select(Provider.status).where(Provider.id == claim.provider_id))
+            != "verified"
+            or self.access_status != "verified"
             or job.owner_token != claim.token
             or job.lease_until <= db_now(db)
         ):
@@ -200,12 +241,12 @@ class Queue:
                 for t in state.recent_calls
                 if datetime.fromisoformat(t) > now - timedelta(minutes=1)
             ]
-            budget = self.settings.aemet_daily_http_budget
+            budget = self.setting("daily_http_budget")
             if claim.kind != "current":
-                budget -= self.settings.aemet_current_reserve
+                budget = max(0, budget - self.setting("current_reserve"))
             if state.day_calls >= budget:
                 error = IngestionError("daily_budget", retry_at=day + timedelta(days=1))
-            elif len(recent) >= self.settings.aemet_minute_http_budget:
+            elif len(recent) >= self.setting("minute_http_budget"):
                 error = IngestionError("minute_budget", retry_at=recent[0] + timedelta(minutes=1))
             else:
                 recent.append(now)
@@ -223,7 +264,8 @@ class Queue:
             )
             job = self.fence(db, claim)
             now = db_now(db)
-            state.last_polled_at = now
+            if claim.kind == "current":
+                state.last_polled_at = now
             newest = result.get("newest_observed_at")
             if newest:
                 instant = datetime.fromisoformat(newest)
@@ -267,8 +309,10 @@ class Queue:
             job.owner_token, job.lease_until = None, None
 
     def resume(self):
+        if self.access_status != "verified":
+            raise IngestionError(self.access_status, pause=True)
         with Session(self.engine) as db, db.begin():
-            provider = db.scalar(select(Provider).where(Provider.code == "aemet"))
+            provider = db.scalar(select(Provider).where(Provider.code == self.provider_code))
             if provider is None:
                 return
             state = db.scalar(

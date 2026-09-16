@@ -3,7 +3,7 @@
 from collections import Counter, defaultdict
 from datetime import timedelta
 
-from sqlalchemy import delete, or_, select, text
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -13,22 +13,19 @@ from meteocentro.aemet import (
     measurement,
     normalize,
     observation_time,
-    source_identity,
     station_record,
 )
+from meteocentro.catalog import review_absences
 from meteocentro.domain.eligibility import eligible_source_ids
 from meteocentro.domain.observations import MetricKind
 from meteocentro.domain.provinces import classify_province
 from meteocentro.job_queue import Claim, Queue, db_now
 from meteocentro.models import (
-    Exclusion,
     IngestionRun,
     LatestObservation,
     Observation,
     ObservationRevision,
     ProductMetadata,
-    Station,
-    StationSource,
 )
 
 
@@ -67,77 +64,25 @@ class Ingestor:
                 )
             )
 
-    def catalog(self, db: Session, info: dict, province: str, counters: Counter):
-        # Stable key also serializes creation before a station row exists.
-        db.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:identity, 0))"),
-            {"identity": "aemet:" + info["external_id"]},
+    def catalog(self, db: Session, info: dict, province: str | None, counters: Counter):
+        from meteocentro.catalog import upsert_source
+        from meteocentro.models import Provider
+
+        return upsert_source(
+            db,
+            db.get(Provider, self.claim.provider_id),
+            info,
+            counters,
+            capability="current" if self.claim.kind == "current" else "daily_history",
         )
-        source = db.scalar(
-            select(StationSource).where(
-                StationSource.provider_id == self.claim.provider_id,
-                StationSource.external_id == info["external_id"],
-            )
-        )
-        if source:
-            station = db.scalar(
-                select(Station).where(Station.id == source.station_id).with_for_update()
-            )
-            # A new statement after the lock sees an exclusion committed while we waited.
-            excluded = db.scalar(
-                select(Exclusion.id)
-                .where(
-                    Exclusion.revoked_at.is_(None),
-                    or_(Exclusion.station_id == station.id, Exclusion.source_id == source.id),
-                )
-                .limit(1)
-            )
-            if excluded or station.moderation_status == "excluded" or source.status != "enabled":
-                counters["excluded"] += 1
-                return None
-            # Inventory never overwrites a verified current position or moderation.
-            if self.claim.kind == "current" and (
-                source.latitude is None
-                or source.longitude is None
-                or abs(source.latitude - info["latitude"]) > 0.002
-                or abs(source.longitude - info["longitude"]) > 0.002
-            ):
-                station.moderation_status = "review"
-                counters["location_review"] += 1
-            if station.moderation_status != "active":
-                counters["invalid"] += 1
-                return None
-        else:
-            station = Station(
-                name=info["name"],
-                province_code=province,
-                latitude=info["latitude"],
-                longitude=info["longitude"],
-                altitude_m=info["altitude_m"],
-                moderation_status="active",
-            )
-            db.add(station)
-            db.flush()
-            source = StationSource(
-                id=source_identity(info["external_id"]),
-                provider_id=self.claim.provider_id,
-                station_id=station.id,
-                external_id=info["external_id"],
-                latitude=info["latitude"],
-                longitude=info["longitude"],
-                status="enabled",
-                capabilities={},
-            )
-            db.add(source)
-            db.flush()
-            counters["new_sources"] += 1
-        capability = "current" if self.claim.kind == "current" else "daily_history"
-        source.capabilities = {**source.capabilities, capability: True}
-        db.flush()
-        return source
 
     def store_observation(self, db, item, source, quality, counters):
-        metrics = {name: metric.model_dump(mode="json") for name, metric in item.metrics.items()}
+        metrics = {
+            name: metric.model_dump(
+                mode="json", exclude={"period_basis"} if metric.period_basis is None else set()
+            )
+            for name, metric in item.metrics.items()
+        }
         observation = db.scalar(
             select(Observation).where(
                 Observation.source_id == source.id,
@@ -238,6 +183,11 @@ class Ingestor:
                     "unchanged",
                     "new_sources",
                     "location_review",
+                    "updated_sources",
+                    "potential_duplicates",
+                    "pending",
+                    "absent_sources",
+                    "absence_review",
                 )
             }
         )
@@ -302,6 +252,17 @@ class Ingestor:
         gaps = []
         if self.claim.kind == "current":
             from datetime import datetime
+
+            with Session(self.queue.engine) as db, db.begin():
+                self.queue.fence(db, self.claim)
+                review_absences(
+                    db,
+                    self.claim.provider_id,
+                    {row.get("idema") for row in batch.records if isinstance(row, dict)},
+                    batch.fetched_at,
+                    counters,
+                )
+                self.queue.fence(db, self.claim)
 
             for identity, watermark in self.claim.cursor.get("sources", {}).items():
                 times = sorted(set(available.get(identity, [])))

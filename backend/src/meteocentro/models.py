@@ -80,6 +80,42 @@ class StationSource(Base):
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     status: Mapped[str] = mapped_column(String(16), default="unavailable")
     capabilities: Mapped[dict] = mapped_column(JSONB, default=dict)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    source_metadata: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
+    review_reason: Mapped[str | None] = mapped_column(String(100))
+
+
+class IdentityExclusion(Base):
+    """Tombstone for an external ID, including IDs not yet discovered."""
+
+    __tablename__ = "identity_exclusions"
+    __table_args__ = (UniqueConstraint("provider_id", "external_id", name="uq_identity_exclusion"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("providers.id"))
+    external_id: Mapped[str] = mapped_column(String(200))
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DuplicateCandidate(Base):
+    __tablename__ = "duplicate_candidates"
+    __table_args__ = (
+        UniqueConstraint("source_id", "other_source_id", name="uq_duplicate_pair"),
+        CheckConstraint("source_id < other_source_id", name="duplicate_pair_order"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("station_sources.id"))
+    other_source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("station_sources.id"))
+    distance_m: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    reason: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(32), server_default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class StationLocationHistory(Base):

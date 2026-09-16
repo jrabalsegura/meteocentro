@@ -2,7 +2,7 @@
 
 Plan de desarrollo de una aplicación meteorológica para Madrid, Ávila, Segovia y Guadalajara, inspirada en el mapa y los históricos de Suremet. La primera versión se centra en AEMET y Meteoclimatic. Weather Underground queda como ampliación opcional tras revisar su coste y acceso.
 
-**Fases 0, 1 y 2:** base local y worker AEMET con ingestión persistente, cuotas y recuperación. La validación real y las limitaciones constan en [ESTADO.md](docs/ESTADO.md). Nombre provisional: Meteocentro.
+**Fases 0–3:** base local, worker AEMET y lector Meteoclimatic con catálogo compartido, cuotas y exclusiones persistentes. Meteoclimatic se habilita localmente bajo la licencia publicada, con catálogo de coordenadas a minutos y semántica explícita de lluvia y presión. La validación real y las limitaciones constan en [ESTADO.md](docs/ESTADO.md). Nombre provisional: Meteocentro.
 
 Actualización de alcance: el usuario no dispone de clave Wunderground y prefiere usar AEMET y Meteoclimatic si su incorporación resulta cara. La recomendación tras revisar las tarifas es desarrollar primero esas dos redes. Ver [coste y acceso a datos](docs/COSTE_Y_ACCESO_DATOS.md).
 
@@ -54,7 +54,7 @@ docker compose --profile ingestion exec worker python -m meteocentro.worker --st
 
 Las observaciones se consultan cada 15 minutos y el inventario cada 24 horas. Sin clave, el proveedor queda pausado con `pending_access`; después de configurarla, usar `python -m meteocentro.worker --resume`. Los comandos de consulta única, presupuestos, exclusión concurrente y recuperación están en [OPERACION_FASE_2.md](docs/OPERACION_FASE_2.md). La primera ejecución puede llenar el archivo con las horas aún disponibles en AEMET; no importa históricos antiguos.
 
-El siguiente incremento es la fase 3, sujeto a los bloqueos de acceso y términos de Meteoclimatic. No hay despliegue remoto ni recogida de otras redes activada.
+La implementación de fase 3 y sus comandos están en [OPERACION_FASE_3.md](docs/OPERACION_FASE_3.md). Meteoclimatic incorpora el XML y coordenadas de fichas públicas a minutos, con caché, cuotas y exclusiones persistentes. Se habilita el uso local privado no comercial bajo la licencia publicada, con atribución. La lluvia conserva su naturaleza de contador diario y el horario diario desconocido; no se suma como incremento. Resultados del piloto y límites en [ESTADO.md](docs/ESTADO.md). No hay despliegue remoto.
 
 ## Comportamientos esenciales
 

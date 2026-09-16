@@ -39,7 +39,7 @@ def classify_province(longitude: float, latitude: float, polygons=None) -> str |
 def classify_minute_precision_location(
     longitude: float, latitude: float, polygons=None
 ) -> str | None:
-    """Classify a manually verified location shown only to whole minutes.
+    """Classify a verified location shown only to whole minutes.
 
     The site's rounding rule is unknown, so allow one full minute in each direction.
     A result is returned only when that entire uncertainty box is inside one province.

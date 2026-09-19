@@ -1,8 +1,8 @@
 # Estado del desarrollo
 
-Última actualización: 16 de septiembre de 2026.
+Última actualización: 19 de septiembre de 2026.
 
-**Estado general:** fases 0–3 implementadas localmente. Meteoclimatic tiene catálogo de fichas públicas a minutos, ingesta real en PostgreSQL y repetición idempotente comprobada: 143 fuentes, 131 ubicaciones aptas y 12 en revisión. Uso local privado no comercial bajo la licencia publicada, con originales y atribución. Se conserva el piloto AEMET de fase 2 y la clave solicitada está en configuración privada; su último diagnóstico parcial no se confunde con otro piloto completo. No hay despliegue remoto ni servicio permanente arrancado.
+**Estado general:** fases 0–4 implementadas localmente. La fase 4 añade mapa topográfico, tabla y fichas conectados a la API; validados escritorio, móvil, errores, exclusiones y 2.000 estaciones sintéticas. Guía, contrato y mediciones en [USO_Y_VALIDACION_FASE_4.md](USO_Y_VALIDACION_FASE_4.md). Meteoclimatic tiene catálogo de fichas públicas a minutos, ingesta real en PostgreSQL y repetición idempotente comprobada: 143 fuentes, 131 ubicaciones aptas y 12 en revisión. Uso local privado no comercial bajo la licencia publicada, con originales y atribución. Se conserva el piloto AEMET de fase 2 y la clave solicitada está en configuración privada; su último diagnóstico parcial no se confunde con otro piloto completo. No hay despliegue remoto ni servicio permanente arrancado.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
 
@@ -14,10 +14,26 @@
 | 1 | Implementación y pruebas locales completadas con Docker Compose y PostgreSQL 17.11; comprobación Podman pendiente | Ejecutar el mismo Compose con Podman en un entorno que lo tenga instalado |
 | 2 | Implementada y validada con PostgreSQL real y piloto AEMET de tres ciclos | Disponibilidad sostenida y recepción de próximas publicaciones no cubiertas por el piloto limitado |
 | 3 | Completada para uso local: 88 pruebas y piloto real de catálogo e ingesta Meteoclimatic | Revisión de 12 posiciones dudosas; seguimiento sostenido al desplegar. Horario diario desconocido explícito. WU aplazado |
-| 4 | Pendiente | Recorrido de mapa, tabla y ficha en escritorio y móvil |
+| 4 | Implementada y validada localmente: mapa, tabla, fichas, filtros persistentes y consulta por lote | Medir en el entorno de despliegue; la medición local no garantiza latencia de Internet ni móviles reales |
 | 5 | Pendiente | Series y agregados correctos con periodos y cobertura |
 | 6 | Pendiente | Exclusión y restauración comprobadas de extremo a extremo |
 | 7 | Pendiente | Instalación Podman, reinicio, actualización y restauración ensayados |
+
+## Registro de fase 4 — 19 de septiembre de 2026
+
+**Cambios:** rutas `/`, `/estaciones`, `/estaciones/:id`; MapLibre 6.10.0 con cartografía topográfica/clara IGN, límites provinciales, números coloreados, agrupación de colisiones sin promedios meteorológicos, leyenda y controles; tabla ordenable/paginada, filtros y selección en URL, ficha por origen/variable y panel móvil. Refresco cada 60 s visible y al volver; sin llamadas meteorológicas externas desde el navegador. API `/map` por lote con bbox, provincia/red, métrica, búsqueda y frescura, y `/stations/:id/current`; elegibilidad única, una sentencia SQL por proyección y respuestas públicas `no-store`.
+
+**Reglas:** 90 min AEMET y 45 min Meteoclimatic; observación/recogida diferenciadas. Preferencia reciente utilizable → AEMET → Meteoclimatic con procedencia explícita. Viento en km/h, presión de estación separada de presión al mar, lluvia horaria separada del contador diario de horario desconocido. Extremos solo entre lecturas recientes del mismo tipo/unidad/periodo, con cobertura; sin comparaciones parciales cuando se trunca. El municipio independiente solo se usa si consta verificado; no se inventa a partir de coordenadas o nombres.
+
+**Pruebas efectivas:** suite completa final **111 correctas** en PostgreSQL 17 temporal, incluidas **23 pruebas de fase 4**. **7 recorridos Playwright correctos** con API/teselas sintéticas: escritorio, 390 px, URL y retorno desde ficha, exclusión tras refresco y URL directa, API/cartografía caída y recuperación, teclado, pestaña oculta, origen retirado y conservación del foco al refrescar. Exclusiones reales comprobadas en PostgreSQL, incluidas identidad, origen y commit de otra sesión. `npm run build`, Ruff, formato, `git diff --check` y Alembic `check` correctos; sin nombres de claves ni URL PostgreSQL en el bundle; MapLibre cargado aparte con aviso de tamaño de chunk. Npm sin vulnerabilidades tras fijar la versión corregida. Los avisos de Starlette/TestClient y Node local 26 frente al 24 fijado se conservan explícitos.
+
+**Mediciones:** API con 2.000 estaciones sintéticas, mediana caliente **201,8 ms** (5 lecturas tras la primera), 2.009.894 bytes. Navegador con respuestas simuladas: **488 ms** a datos útiles, **439 ms** al cambiar variable, 41 símbolos agrupados y cero solapamientos. Navegador con API PostgreSQL real local y teselas IGN reales: **933 ms** y **466 ms** respectivamente; 39 teselas HTTP 200 de ambos fondos durante escritorio/móvil, cero errores JavaScript, sin desbordamiento de página y panel móvil de 405,1 px sobre 844. Entorno M3/24 GiB/macOS 26.6.2/Chrome 153, sin ralentización. Son muestras locales de desarrollo, no una garantía de producción ni móvil real.
+
+**Fuente real frente a fixtures:** 24 comparaciones offline de los valores/horas de cuatro muestras AEMET archivadas del 16-09-2026, una por provincia, contra la nueva proyección. Transacción revertida, ninguna llamada nueva a AEMET/Meteoclimatic y ninguna clave nueva. No se presenta como otra ingesta en vivo. Las teselas IGN sí se verificaron con red. La población de 2.000 es sintética, identificada como tal y aislada; no cambia el inventario del proyecto.
+
+**Limitaciones y entrega:** lluvia diaria/ráfaga diaria de horario desconocido únicamente como reportadas en ficha; racha del intervalo e intensidad aún sin datos. La cadencia de frescura no promete publicación puntual. Una pantalla abierta refleja una exclusión en el siguiente refresco visible; el servidor la aplica en cada lectura. Archivo local privado según fase 3, sin radar/pronósticos ni publicación, servicios remotos o recogida permanente. Entrega en la rama `codex/fase-4-mapa-estaciones`, mediante pull request contra `main` solicitada por el usuario. API, vista previa y PostgreSQL temporales detenidos al finalizar. Las evidencias y capturas quedan ignoradas por Git. CI ampliada para fase 4; sus resultados remotos se consultan en la pull request. Los resultados anteriores corresponden a comprobaciones locales.
+
+**Siguiente paso:** fase 5, series y agregados con ventanas y cobertura verificadas. [Guía de uso, contrato y reproducción de mediciones](USO_Y_VALIDACION_FASE_4.md).
 
 ## Cierre local de Meteoclimatic — 16 de septiembre de 2026
 

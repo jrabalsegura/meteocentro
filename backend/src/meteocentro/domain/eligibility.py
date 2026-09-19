@@ -43,16 +43,16 @@ def eligible_station_ids():
     )
 
 
-def eligible_source_ids(station_id: UUID):
+def eligible_source_ids(station_id: UUID | None = None):
     source_excluded = exists(
         select(Exclusion.id).where(
             Exclusion.source_id == StationSource.id, Exclusion.revoked_at.is_(None)
         )
     )
-    return select(StationSource.id).where(
-        StationSource.station_id == station_id,
+    query = select(StationSource.id).where(
         StationSource.status == "enabled",
         permitted_source(),
         ~source_excluded,
         StationSource.station_id.in_(eligible_station_ids()),
     )
+    return query.where(StationSource.station_id == station_id) if station_id else query

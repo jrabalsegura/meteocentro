@@ -10,7 +10,7 @@ Fecha inicial: 9 de septiembre de 2026. Registrar aquí cambios de criterio para
 - Posibilidad de eliminar estaciones que el administrador considere erróneas.
 - Descubrimiento periódico de nuevas estaciones y recogida automática de observaciones.
 - Despliegue en contenedores Podman en el servidor habitual mediante SSH.
-- Se solicitaron las fases 0, 1, 2 y 3; el despliegue remoto sigue sin solicitarse.
+- Se solicitaron las fases 0, 1, 2, 3 y 4; el despliegue remoto sigue sin solicitarse.
 - Las coordenadas públicas de Meteoclimatic mostradas a minutos son suficientemente precisas para situar aproximadamente una estación en el mapa; no se exige precisión a segundos. Los casos cercanos a un límite provincial siguen requiriendo revisión.
 
 ## Propuestas de trabajo
@@ -71,3 +71,12 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 
 - El usuario reitera que las coordenadas Meteoclimatic a minutos son suficientes. No se solicitará mayor precisión como condición para incorporar la red; el catálogo ya obtiene esas ubicaciones de las fichas públicas conforme al contrato revisado.
 - El usuario autoriza expresamente copiar la clave AEMET desde Radar App a la configuración privada de Meteocentro, sin mostrarla. Se copia únicamente `AEMET_API_KEY` al `.env` local, ignorado por Git y con permisos 0600; se preservan las demás variables y la configuración de Radar App. Esta decisión amplía el permiso anterior, que se limitaba a usarla en memoria.
+
+## Decisiones menores de fase 4 — 19 de septiembre de 2026
+
+- Cartografía WMTS IGN topográfica y clara, sin claves ni gasto; límites provinciales ya versionados. MapLibre 6.10.0, cargado aparte y bloqueado; la versión inicial ensayada se descartó tras la auditoría de dependencias.
+- Proyección por lote sin caché pública: mapa y tabla comparten población filtrada, no solo la parte visible. Hasta 2.000 resultados en UI y límite de contrato de 5.000, truncamiento visible y extremos desactivados si la población es parcial.
+- Preferencia por valor reciente utilizable, después AEMET/Meteoclimatic; origen individual visible. Se mantienen 90/45 minutos de frescura. Extremos con tipos, unidades y periodos idénticos; las instantáneas explican su rango de horas.
+- Municipios solo cuando consten en metadatos; también se busca texto en el nombre. No se incorpora geocodificación ni se inventan localidades. No hay migración de esquema.
+- La lluvia diaria y extremos Meteoclimatic de horario desconocido siguen separados como reportados en ficha. Racha del intervalo e intensidad sin datos no se simulan. Fase 5 completará diarios, gráficos e históricos.
+- Pruebas de interfaz offline y chequeo cartográfico real separado; población sintética aislada, no publicada. Sin despliegue ni activación de servicios permanentes. Detalles en `USO_Y_VALIDACION_FASE_4.md`.

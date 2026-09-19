@@ -2,7 +2,7 @@
 
 Plan de desarrollo de una aplicación meteorológica para Madrid, Ávila, Segovia y Guadalajara, inspirada en el mapa y los históricos de Suremet. La primera versión se centra en AEMET y Meteoclimatic. Weather Underground queda como ampliación opcional tras revisar su coste y acceso.
 
-**Fases 0–3:** base local, worker AEMET y lector Meteoclimatic con catálogo compartido, cuotas y exclusiones persistentes. Meteoclimatic se habilita localmente bajo la licencia publicada, con catálogo de coordenadas a minutos y semántica explícita de lluvia y presión. La validación real y las limitaciones constan en [ESTADO.md](docs/ESTADO.md). Nombre provisional: Meteocentro.
+**Fases 0–4:** base local, worker AEMET y lector Meteoclimatic con catálogo compartido, cuotas y exclusiones persistentes. Meteoclimatic se habilita localmente bajo la licencia publicada, con catálogo de coordenadas a minutos y semántica explícita de lluvia y presión. La validación real y las limitaciones constan en [ESTADO.md](docs/ESTADO.md). Nombre provisional: Meteocentro.
 
 Actualización de alcance: el usuario no dispone de clave Wunderground y prefiere usar AEMET y Meteoclimatic si su incorporación resulta cara. La recomendación tras revisar las tarifas es desarrollar primero esas dos redes. Ver [coste y acceso a datos](docs/COSTE_Y_ACCESO_DATOS.md).
 
@@ -28,6 +28,10 @@ curl -fsS http://127.0.0.1:5173/api/v1/stations
 ```
 
 La pantalla local está en `http://127.0.0.1:5173/`; OpenAPI en `http://127.0.0.1:5173/api/v1/docs`. La base empieza vacía: la respuesta comprobada de estaciones fue `{"items":[],"total":0,"limit":50,"offset":0}`. `docker compose down` detiene los contenedores y conserva el volumen; `docker compose down -v` borraría la base local y **no** forma parte del procedimiento ordinario. La ingestión se activa por separado mediante el perfil `ingestion`, pasando `AEMET_API_KEY` únicamente al worker. Véanse el [contrato de API y datos](docs/CONTRATOS_FASE_1.md) y la [operación de fase 2](docs/OPERACION_FASE_2.md).
+
+## Mapa y estaciones
+
+La fase 4 incorpora mapa topográfico/claro, números coloreados, tabla ordenable y fichas por estación y fuente. Conserva filtros, selección y vista en la URL; informa de hora, antigüedad, unidad y periodo. La [guía de uso y validación](docs/USO_Y_VALIDACION_FASE_4.md) documenta la API, los recorridos de escritorio/móvil, las exclusiones y las mediciones con 2.000 estaciones sintéticas.
 
 ## Documentos por fase
 

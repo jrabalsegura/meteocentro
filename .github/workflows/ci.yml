@@ -37,13 +37,13 @@ jobs:
         working-directory: backend
       - name: Lint and format
         run: |
-          backend/.venv/bin/ruff check backend/src tests/conftest.py tests/test_phase1.py tests/test_phase2.py tests/test_phase3.py
-          backend/.venv/bin/ruff format --check backend/src tests/conftest.py tests/test_phase1.py tests/test_phase2.py tests/test_phase3.py
+          backend/.venv/bin/ruff check backend/src tests/conftest.py tests/test_phase1.py tests/test_phase2.py tests/test_phase3.py tests/test_phase4.py
+          backend/.venv/bin/ruff format --check backend/src tests/conftest.py tests/test_phase1.py tests/test_phase2.py tests/test_phase3.py tests/test_phase4.py
       - name: Migrations and tests on PostgreSQL
         run: |
           backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
           backend/.venv/bin/alembic -c backend/alembic.ini check
-          backend/.venv/bin/pytest tests/test_phase1.py tests/test_phase2.py tests/test_phase3.py -q
+          backend/.venv/bin/pytest tests/test_phase1.py tests/test_phase2.py tests/test_phase3.py tests/test_phase4.py -q
           python3 -m unittest discover -s tests -p test_phase0.py
 
   frontend:
@@ -58,4 +58,8 @@ jobs:
       - run: npm ci
         working-directory: frontend
       - run: npm run build
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
         working-directory: frontend

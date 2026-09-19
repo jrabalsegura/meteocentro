@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from meteocentro.config import get_settings
 from meteocentro.db import get_session
 from meteocentro.domain.eligibility import eligible_source_ids, eligible_station_ids
+from meteocentro.map_api import router as map_router
 from meteocentro.models import (
     DailySummary,
     LatestObservation,
@@ -39,6 +40,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 DbSession = Annotated[Session, Depends(get_session)]
+app.include_router(map_router)
+
+
+@app.middleware("http")
+async def public_no_store(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/v1/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 class StationRead(BaseModel):

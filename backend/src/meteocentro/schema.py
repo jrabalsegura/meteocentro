@@ -1,1 +1,1 @@
-EXPECTED_REVISION = "0005_administration"
+EXPECTED_REVISION = "0006_operations"

@@ -1,0 +1,33 @@
+[Unit]
+Description=Meteocentro independent ingestion worker
+Wants=meteocentro-db.service
+After=meteocentro-db.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+ContainerName=meteocentro-worker
+Image=@BACKEND_IMAGE@
+Pull=never
+Network=meteocentro.network
+EnvironmentFile=@CONFIG_DIR@/meteocentro.env
+EnvironmentFile=@CONFIG_DIR@/database.env
+EnvironmentFile=@CONFIG_DIR@/worker.env
+Exec=python -m meteocentro.start worker
+User=10001:10001
+ReadOnly=true
+Tmpfs=/tmp:rw,size=32m,mode=1777
+DropCapability=all
+NoNewPrivileges=true
+LogDriver=k8s-file
+PodmanArgs=--log-opt=max-size=20mb --memory=768m --cpus=1 --stop-timeout=90
+PidsLimit=128
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=420
+TimeoutStopSec=120
+
+[Install]
+WantedBy=@TARGET@

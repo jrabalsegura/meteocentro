@@ -181,6 +181,10 @@ def main() -> int:
     stopped = Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.set())
+    if not (args.status or args.once or args.resume):
+        from meteocentro.operations import start_heartbeat
+
+        start_heartbeat(get_engine(), stopped)
     count = 0
     while not stopped.is_set():
         try:

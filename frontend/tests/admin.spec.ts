@@ -78,6 +78,7 @@ async function setup(page: import("@playwright/test").Page) {
               metrics: { temperature: { value: 20, unit: "°C" } },
             },
           ],
+
         },
       });
     if (path.endsWith("/stations"))
@@ -97,6 +98,16 @@ async function setup(page: import("@playwright/test").Page) {
               capabilities: { current: true },
             },
           ],
+          operations: {
+            worker: { state: "missing", last_seen_at: "2026-09-21T09:00:00Z" },
+            overdue_jobs: 2,
+            next_job_at: "2026-09-21T09:15:00Z",
+            providers: [{
+              provider: "aemet",
+              state: "responding_without_fresh_data",
+              last_new_data_at: "2026-09-21T08:00:00Z",
+            }],
+          },
         },
       });
     return route.fulfill({ json: { items: [] } });
@@ -198,4 +209,14 @@ test("sesión revocada elimina la gestión abierta", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Administración", exact: true }),
   ).not.toBeVisible();
+});
+
+
+test("fuentes: distingue worker sin latido de proveedor con datos antiguos", async ({ page }) => {
+  await setup(page);
+  await login(page);
+  await page.getByRole("button", { name: "Fuentes", exact: true }).click();
+  await expect(page.getByText("Sin latido reciente: revisar el worker", { exact: true })).toBeVisible();
+  await expect(page.getByText("Trabajos retrasados: 2", { exact: true })).toBeVisible();
+  await expect(page.getByText("Responde, pero no entrega datos recientes", { exact: false })).toBeVisible();
 });

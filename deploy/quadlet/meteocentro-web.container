@@ -1,0 +1,36 @@
+[Unit]
+Description=Meteocentro web
+Wants=meteocentro-api.service
+After=meteocentro-api.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+ContainerName=meteocentro-web
+Image=@WEB_IMAGE@
+Pull=never
+Network=meteocentro.network
+PublishPort=127.0.0.1:@PORT@:8080
+User=101:101
+ReadOnly=true
+Tmpfs=/tmp:rw,size=32m,mode=1777
+DropCapability=all
+NoNewPrivileges=true
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/health/ready
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=90s
+HealthOnFailure=kill
+LogDriver=k8s-file
+PodmanArgs=--log-opt=max-size=20mb --memory=128m --stop-timeout=30
+PidsLimit=64
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=60
+
+[Install]
+WantedBy=@TARGET@

@@ -690,14 +690,17 @@ def test_bounded_retry_backoff_then_normal_cadence(queue, db):
         claim = due(queue)
         db.expire_all()
         assert db.get(Job, claim.job_id).attempts == expected_attempt
-        before = datetime.now(UTC)
+        # Scheduling uses PostgreSQL's clock, which can differ from the Mac host.
+        before = db_now(db)
         queue.fail(claim, IngestionError("http_timeout"))
+        after = db_now(db)
         db.expire_all()
         job = db.get(Job, claim.job_id)
+        jitter = 5 if expected_attempt <= 3 else 0
         assert (
-            minimum_delay
-            <= (job.next_run_at - before).total_seconds()
-            < minimum_delay + 6
+            before + timedelta(seconds=minimum_delay)
+            <= job.next_run_at
+            <= (after + timedelta(seconds=minimum_delay + jitter))
         )
     assert job.attempts == 0
 

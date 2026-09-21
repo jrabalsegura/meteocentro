@@ -1,0 +1,4 @@
+[Network]
+NetworkName=meteocentro
+Driver=bridge
+# Egress is required by the worker. No API/DB ports are published.

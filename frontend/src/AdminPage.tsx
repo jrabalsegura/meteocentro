@@ -74,6 +74,12 @@ type Duplicate = {
   source_name: string;
   other_source_name: string;
 };
+type Operations = {
+  worker: { state: string; last_seen_at: string | null };
+  overdue_jobs: number;
+  next_job_at: string | null;
+  providers: { provider: string; state: string; last_new_data_at: string | null }[];
+};
 type Audit = {
   id: string;
   actor: string;
@@ -135,6 +141,13 @@ const labels: Record<string, string> = {
   falta_credencial: "Falta la credencial",
   gestionada_por_worker: "Gestionada en el servidor",
   configurada: "Clave configurada",
+  alive: "En marcha",
+  missing: "Sin latido reciente: revisar el worker",
+  fresh: "Datos recientes",
+  no_polls: "Todavía sin consultas",
+  poll_overdue: "Recogida retrasada",
+  no_data: "Todavía sin observaciones",
+  responding_without_fresh_data: "Responde, pero no entrega datos recientes",
 };
 const label = (value: string) => labels[value] ?? value;
 
@@ -533,6 +546,7 @@ export default function AdminPage({ session }: { session: Session }) {
   const [stations, setStations] = useState<Station[]>([]);
   const [total, setTotal] = useState(0);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [operations, setOperations] = useState<Operations | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [duplicates, setDuplicates] = useState<Duplicate[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
@@ -579,11 +593,12 @@ export default function AdminPage({ session }: { session: Session }) {
           if (active) setAudit(data.items);
         } else {
           const [p, j] = await Promise.all([
-            request<{ items: Provider[] }>("/admin/providers", session),
+            request<{ items: Provider[]; operations?: Operations }>("/admin/providers", session),
             request<{ items: Job[] }>(`/admin/jobs?offset=${offset}`, session),
           ]);
           if (active) {
             setProviders(p.items);
+            setOperations(p.operations ?? null);
             setJobs(j.items);
           }
         }
@@ -863,6 +878,18 @@ export default function AdminPage({ session }: { session: Session }) {
           )}
           {(tab === "providers" || tab === "discovery") && (
             <div className="admin-grid">
+              {operations && (
+                <article className="admin-station">
+                  <h2>Recogida de datos</h2>
+                  <p>{label(operations.worker.state)}</p>
+                  <p>Último latido: {operations.worker.last_seen_at ? date(operations.worker.last_seen_at) : "Sin registro"}</p>
+                  <p>Trabajos retrasados: {operations.overdue_jobs}</p>
+                  <p>Próximo trabajo: {operations.next_job_at ? date(operations.next_job_at) : "Sin programar"}</p>
+                  {operations.providers.map((p) => (
+                    <p key={p.provider}>{p.provider}: {label(p.state)}. Última incorporación: {p.last_new_data_at ? date(p.last_new_data_at) : "Sin datos nuevos"}</p>
+                  ))}
+                </article>
+              )}
               {providers.map((p) => (
                 <article className="admin-station" key={p.code}>
                   <h2>{p.name}</h2>

@@ -24,7 +24,7 @@ from meteocentro.history import (
 from meteocentro.history_import import enqueue_history, normalize_daily
 from meteocentro.history_maintenance import retention_preview, schedule_maintenance
 from meteocentro.ingestion import Ingestor
-from meteocentro.job_queue import Queue
+from meteocentro.job_queue import Queue, db_now
 from meteocentro.models import (
     AggregateDirtyDay,
     DailySummary,
@@ -550,13 +550,13 @@ def test_import_replay_resume_downward_correction_and_latest_unchanged(db, archi
     db.execute(
         update(Job)
         .where(Job.id == claim.job_id)
-        .values(lease_until=datetime.now(UTC) - timedelta(seconds=1))
+        .values(lease_until=db_now(db) - timedelta(seconds=1))
     )
     # Keep the second window from taking priority over the interrupted job.
     db.execute(
         update(Job)
         .where(Job.kind == "history", Job.id != claim.job_id)
-        .values(next_run_at=datetime.now(UTC) + timedelta(days=1))
+        .values(next_run_at=db_now(db) + timedelta(days=1))
     )
     db.commit()
     resumed = queue.claim("history")
@@ -570,25 +570,25 @@ def test_import_replay_resume_downward_correction_and_latest_unchanged(db, archi
     job = db.get(Job, claim.job_id)
     job.cursor = {"from": str(DAY), "to": str(DAY + timedelta(days=30))}
     job.status = "pending"
-    job.next_run_at = datetime.now(UTC)
+    job.next_run_at = db_now(db)
     db.commit()
     replay = queue.claim("history")
+    assert replay is not None
     assert run_claim(queue, replay, adapter_factory=factory)["result"]["unchanged"] == 6
     db.expire_all()
     job = db.get(Job, claim.job_id)
     job.cursor = {"from": str(DAY), "to": str(DAY + timedelta(days=30))}
     job.status = "pending"
-    job.next_run_at = datetime.now(UTC)
+    job.next_run_at = db_now(db)
     db.commit()
     corrected = {**DAILY, "tmax": "18,0"}
     factory = lambda key, **kw: AemetAdapter(
         key, transport=daily_transport([corrected]), **kw
     )
+    correction = queue.claim("history")
+    assert correction is not None
     assert (
-        run_claim(queue, queue.claim("history"), adapter_factory=factory)["result"][
-            "revised"
-        ]
-        == 6
+        run_claim(queue, correction, adapter_factory=factory)["result"]["revised"] == 6
     )
     db.expire_all()
     assert db.scalar(select(func.count()).select_from(DailySummaryRevision)) == 6

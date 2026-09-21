@@ -16,6 +16,8 @@ La propuesta utiliza una base de datos propia y un proceso de recogida permanent
 
 **Actualización de fase 6, 21 de septiembre de 2026:** implementados el acceso privado y el panel de gestión, con exclusión/restauración auditada, cancelación transaccional de trabajos, revisión de orígenes y descubrimiento manual limitado. Validados con PostgreSQL, HTTP sintético y un recorrido completo de navegador/API; la exclusión persiste tras un reinicio real de la base temporal. No se ha actualizado la instalación en uso ni desplegado. Guía en [ADMINISTRACION_FASE_6.md](ADMINISTRACION_FASE_6.md) y evidencia en [ESTADO.md](ESTADO.md).
 
+**Preparación de fase 7, 21 de septiembre de 2026:** Containerfiles, Quadlet, Nginx, CI y procedimientos de operación preparados sin despliegue, por instrucción expresa del usuario. La configuración privada conserva AEMET y Meteoclimatic activos. Guía en [OPERACION.md](OPERACION.md) y resultados/limitaciones en [ESTADO.md](ESTADO.md).
+
 ## Alcance geográfico y fuentes
 
 | Provincia | Código provincial | Inclusión |

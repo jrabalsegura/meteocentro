@@ -32,6 +32,10 @@ services:
       context: .
       dockerfile: deploy/containers/api.Dockerfile
     environment:
+      PRIVATE_READ: ${PRIVATE_READ:-true}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:5173}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SESSION_HOURS: ${SESSION_HOURS:-12}
       HISTORY_COVERAGE_THRESHOLD: ${HISTORY_COVERAGE_THRESHOLD:-0.9}
       DATABASE_URL: postgresql+psycopg://meteocentro:${POSTGRES_PASSWORD}@db:5432/meteocentro
     depends_on:

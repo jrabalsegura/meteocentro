@@ -11,7 +11,7 @@ Fecha inicial: 9 de septiembre de 2026. Registrar aquí cambios de criterio para
 - Posibilidad de eliminar estaciones que el administrador considere erróneas.
 - Descubrimiento periódico de nuevas estaciones y recogida automática de observaciones.
 - Despliegue en contenedores Podman en el servidor habitual mediante SSH.
-- Se solicitaron las fases 0, 1, 2, 3, 4 y 5; el despliegue remoto sigue sin solicitarse.
+- Se solicitaron las fases 0, 1, 2, 3, 4, 5 y 6; el despliegue remoto sigue sin solicitarse.
 - Las coordenadas públicas de Meteoclimatic mostradas a minutos son suficientemente precisas para situar aproximadamente una estación en el mapa; no se exige precisión a segundos. El 21-9-2026 el usuario pide mostrar también las estaciones próximas a un límite provincial: la provincia se asigna según el punto publicado y puede ser aproximada; la incertidumbre de minutos deja de bloquear su publicación.
 
 ## Propuestas de trabajo
@@ -89,3 +89,11 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 - Piloto de 30 días para un origen, máximo de 20 GET históricos/día por defecto y menor prioridad que actualidad. Las solicitudes solapadas comparten ventanas ya encoladas; reapertura explícita para revisar correcciones. No hay importaciones masivas ni panel administrativo nuevo.
 - Se mantiene el diseño de archivo prolongado: particionado mensual real con PK/FKs temporales, tres meses futuros y partición de reserva. Migración bajo ventana de mantenimiento. Retención solo simulada, sin mecanismo de purga habilitable.
 - ECharts 6.1.0 fijado en el bloqueo de dependencias, carga diferida y renderizador SVG. El intervalo personalizado se introduce explícitamente en UTC con fin excluido; las horas se muestran en Madrid con CET/CEST. La política externa de publicación sigue en fase 7.
+
+## Decisiones menores de fase 6 — 21 de septiembre de 2026
+
+- Lectura privada por defecto con origen explícito; creación y recuperación de administrador por CLI interactiva. scrypt de la biblioteca estándar, sesiones opacas revocables de doce horas y límites de login en PostgreSQL. Sin nuevas dependencias ni contraseñas automáticas.
+- Exclusión representada por la lista persistente, sin destruir el estado de revisión. Auditoría, versión y cancelación de trabajos individuales atómicas; lotes compartidos mantienen su calendario y descartan registros excluidos. Restaurar conserva las exclusiones de orígenes y nunca reutiliza el token del worker cancelado.
+- Sin caché de respuestas o archivos CSV reutilizables. Consultas siempre bajo elegibilidad; no-store también en errores y documentación privada. Comprobación de sesión al volver a la pestaña y cada sesenta segundos; panel de trabajos cada quince segundos.
+- Búsqueda manual por trabajos existentes o verificación acotada de ID, una solicitud por red cada quince minutos y cuotas comunes. Las pausas técnicas y de permisos se resuelven en el servidor; el botón de reintento respeta su espera y no las evita.
+- Pruebas en PostgreSQL y servicios web aislados; sin migrar la base en uso, crear cuentas reales ni desplegar. La aplicación de la versión y los ensayos Podman/Quadlet corresponden al siguiente paso operativo. Detalles en [ADMINISTRACION_FASE_6.md](ADMINISTRACION_FASE_6.md).

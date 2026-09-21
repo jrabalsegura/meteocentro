@@ -93,6 +93,10 @@ export async function mockApi(
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     state.requests.push(url.pathname + url.search);
+    if (url.pathname === "/api/v1/auth/session")
+      return route.fulfill({
+        json: { authenticated: false, private_read: false },
+      });
     if (state.fail)
       return route.fulfill({ status: 503, json: { detail: "test failure" } });
     if (url.pathname.endsWith("/providers"))

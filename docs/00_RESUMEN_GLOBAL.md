@@ -14,6 +14,8 @@ La propuesta utiliza una base de datos propia y un proceso de recogida permanent
 
 **Actualización de fase 3, 16 de septiembre de 2026:** implementados el lector Meteoclimatic, el catálogo común y las cuotas/pausas por red sobre el worker existente. El diagnóstico XML real procesó 1.539 estaciones, pero no se ha activado la ingesta: términos, coordenadas autorizadas y semántica diaria/presión siguen pendientes. WU permanece aplazado. Detalles y distinción entre fixtures y pruebas reales en [ESTADO.md](ESTADO.md).
 
+**Actualización de fase 6, 21 de septiembre de 2026:** implementados el acceso privado y el panel de gestión, con exclusión/restauración auditada, cancelación transaccional de trabajos, revisión de orígenes y descubrimiento manual limitado. Validados con PostgreSQL, HTTP sintético y un recorrido completo de navegador/API; la exclusión persiste tras un reinicio real de la base temporal. No se ha actualizado la instalación en uso ni desplegado. Guía en [ADMINISTRACION_FASE_6.md](ADMINISTRACION_FASE_6.md) y evidencia en [ESTADO.md](ESTADO.md).
+
 ## Alcance geográfico y fuentes
 
 | Provincia | Código provincial | Inclusión |

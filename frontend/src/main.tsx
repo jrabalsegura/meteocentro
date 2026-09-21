@@ -19,6 +19,8 @@ import {
 } from "./data";
 import type { View } from "./WeatherMap";
 import "./style.css";
+import { Access } from "./Access";
+const AdminPage = lazy(() => import("./AdminPage"));
 const HistoryPage = lazy(() => import("./HistoryPage"));
 const WeatherMap = lazy(() => import("./WeatherMap"));
 
@@ -352,6 +354,7 @@ function App() {
             </a>
           ))}
         </nav>
+        <a href="/gestion">Gestión privada</a>
         <div className="header-region">
           Madrid · Ávila
           <br />
@@ -1081,4 +1084,11 @@ function ReadingMeta({ reading }: { reading: Reading }) {
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+const management = location.pathname.startsWith("/gestion");
+createRoot(document.getElementById("root")!).render(
+  <Access management={management}>
+    {session => management
+      ? <Suspense fallback={<p>Cargando gestión…</p>}><AdminPage session={session} /></Suspense>
+      : <App />}
+  </Access>,
+);

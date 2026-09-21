@@ -64,7 +64,11 @@ def run_claim(queue, claim, *, adapter_factory=None, after_chunk=None):
         )
     try:
         with Heartbeat(queue, claim):
-            if claim.kind == "history":
+            if claim.kind == "verify":
+                from meteocentro.discovery import verify_identity
+
+                result, cursor = verify_identity(queue, claim, adapter)
+            elif claim.kind == "history":
                 from meteocentro.history_import import run_history
 
                 result, cursor = run_history(queue, claim, adapter, after_chunk=after_chunk)

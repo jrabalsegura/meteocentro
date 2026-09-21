@@ -2,7 +2,7 @@
 
 Plan de desarrollo de una aplicación meteorológica para Madrid, Ávila, Segovia y Guadalajara, inspirada en el mapa y los históricos de Suremet. La primera versión se centra en AEMET y Meteoclimatic. Weather Underground queda como ampliación opcional tras revisar su coste y acceso.
 
-**Fases 0–4:** base local, worker AEMET y lector Meteoclimatic con catálogo compartido, cuotas y exclusiones persistentes. Meteoclimatic se habilita localmente bajo la licencia publicada, con catálogo de coordenadas a minutos y semántica explícita de lluvia y presión. La validación real y las limitaciones constan en [ESTADO.md](docs/ESTADO.md). Nombre provisional: Meteocentro.
+**Fases 0–6:** base local, worker AEMET y lector Meteoclimatic con catálogo compartido, cuotas y exclusiones persistentes. Meteoclimatic se habilita localmente bajo la licencia publicada, con catálogo de coordenadas a minutos y semántica explícita de lluvia y presión. La validación real y las limitaciones constan en [ESTADO.md](docs/ESTADO.md). Nombre provisional: Meteocentro.
 
 Actualización de alcance: el usuario no dispone de clave Wunderground y prefiere usar AEMET y Meteoclimatic si su incorporación resulta cara. La recomendación tras revisar las tarifas es desarrollar primero esas dos redes. Ver [coste y acceso a datos](docs/COSTE_Y_ACCESO_DATOS.md).
 
@@ -24,10 +24,10 @@ cp .env.example .env
 docker compose config --quiet
 docker compose up -d --build
 curl -fsS http://127.0.0.1:5173/health/ready
-curl -fsS http://127.0.0.1:5173/api/v1/stations
+docker compose exec api python -m meteocentro.admin_cli create propietario
 ```
 
-La pantalla local está en `http://127.0.0.1:5173/`; OpenAPI en `http://127.0.0.1:5173/api/v1/docs`. La base empieza vacía: la respuesta comprobada de estaciones fue `{"items":[],"total":0,"limit":50,"offset":0}`. `docker compose down` detiene los contenedores y conserva el volumen; `docker compose down -v` borraría la base local y **no** forma parte del procedimiento ordinario. La ingestión se activa por separado mediante el perfil `ingestion`, pasando `AEMET_API_KEY` únicamente al worker. Véanse el [contrato de API y datos](docs/CONTRATOS_FASE_1.md) y la [operación de fase 2](docs/OPERACION_FASE_2.md).
+La pantalla local está en `http://localhost:5173/`, coincidente con `APP_ORIGIN` del ejemplo; OpenAPI autenticado en `/api/v1/docs`. Desde fase 6, la lectura es privada por defecto: crear el administrador desde una terminal y entrar en la web. La base nueva empieza vacía. Guía de acceso, exclusión y restauración en [ADMINISTRACION_FASE_6.md](docs/ADMINISTRACION_FASE_6.md). `docker compose down` detiene los contenedores y conserva el volumen; `docker compose down -v` borraría la base local y **no** forma parte del procedimiento ordinario. La ingestión se activa por separado mediante el perfil `ingestion`, pasando `AEMET_API_KEY` únicamente al worker. Véanse el [contrato de API y datos](docs/CONTRATOS_FASE_1.md) y la [operación de fase 2](docs/OPERACION_FASE_2.md).
 
 ## Mapa y estaciones
 

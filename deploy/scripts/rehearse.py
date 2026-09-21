@@ -2,6 +2,7 @@
 """Four isolated OCI containers, no provider HTTP; migration/backup/restore rehearsal."""
 
 import argparse
+import ipaddress
 import json
 import os
 import shlex
@@ -102,8 +103,8 @@ def start_role(role):
     args += [image]
     if role != "web":
         args += ["python", "-m", "meteocentro.start", role]
-    run(*args)
     containers.append(names[role])
+    run(*args)
 
 
 def port(container, internal):
@@ -111,8 +112,22 @@ def port(container, internal):
 
 
 try:
+    # Let the engine allocate a free subnet, then explicitly configure that same
+    # subnet before attaching containers. Docker on the Linux runner rejects
+    # --ip on an implicit subnet; the DNS check must reserve the API's old address.
     run(engine, "network", "create", network)
+    network_info = json.loads(run(engine, "network", "inspect", network, capture=True))[0]
+    subnets = (
+        [item["Subnet"] for item in network_info["IPAM"]["Config"]]
+        if engine == "docker"
+        else [item["subnet"] for item in network_info["subnets"]]
+    )
+    subnet = next(value for value in subnets if ipaddress.ip_network(value).version == 4)
+    run(engine, "network", "rm", network)
+    run(engine, "network", "create", "--subnet", subnet, network)
+    report["subnet"] = subnet
     run(engine, "volume", "create", volume)
+    containers.append(names["db"])
     run(
         engine,
         "run",
@@ -135,7 +150,6 @@ try:
         volume + ":/var/lib/postgresql/data",
         images["db"],
     )
-    containers.append(names["db"])
     wait_db(engine, names["db"])
     # Exercise an actual old-to-new schema update containing a real exclusion.
     app_run("alembic", "upgrade", "0005_administration")
@@ -191,6 +205,7 @@ try:
     run(engine, "rm", "-f", names["api"])
     containers.remove(names["api"])
     holder = prefix + "-reserved-address"
+    containers.append(holder)
     run(
         engine,
         "run",
@@ -206,7 +221,6 @@ try:
         images["backend"],
         "120",
     )
-    containers.append(holder)
     start_role("api")
     new_ip = run(engine, "inspect", names["api"], "--format", ip_format, capture=True).strip()
     assert old_ip != new_ip, "API must move to verify DNS recovery"
@@ -219,6 +233,7 @@ try:
                 raise
             time.sleep(1)
     report["api_recreated"] = True
+    report["api_addresses"] = {"before": old_ip, "after": new_ip}
     run(engine, "rm", "-f", holder)
     containers.remove(holder)
     run(engine, "stop", names["worker"])

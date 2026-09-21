@@ -39,7 +39,7 @@ Se consultó [robots.txt](https://www.meteoclimatic.net/robots.txt): no excluía
 
 El trabajo `catalog` consulta hasta 16 fichas pendientes por ejecución, con cuotas y exclusiones del worker común; cachea coordenadas 30 días y revisa errores de ficha tras 24 horas. Todas las llamadas, incluidos robots y fallos, consumen presupuesto persistente. HTTP 403/429 y problemas de transporte usan la pausa/reintento del worker. Una ficha inexistente o ilegible se aísla sin bloquear el resto. Las coordenadas manuales prevalecen; un cambio relevante de ubicación automática genera revisión e historial sin mover la posición canónica.
 
-Se registra precisión `minute`, URL, fecha y método. Como no está documentado el redondeo de minutos, se usa incertidumbre conservadora ±1 minuto en cada eje. La aceptación automática exige que todo ese rectángulo caiga en un polígono provincial IGN. Los casos fronterizos conservan posición aproximada y quedan en revisión; el prefijo no resuelve esa duda.
+Se registra precisión `minute`, URL, fecha y método. Desde la petición expresa del usuario del 21-9-2026, la aceptación y provincia se calculan con el punto publicado sobre los polígonos IGN. La provincia puede ser aproximada junto al límite; se muestran esas estaciones conservando la precisión a minutos. Se retira el bloqueo anterior que exigía contener todo un rectángulo de ±1 minuto en una sola provincia. El prefijo no sustituye a las coordenadas ni sitúa automáticamente un punto fuera del ámbito.
 
 ## Fuera de alcance y validación
 

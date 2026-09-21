@@ -64,7 +64,11 @@ def run_claim(queue, claim, *, adapter_factory=None, after_chunk=None):
         )
     try:
         with Heartbeat(queue, claim):
-            if queue.provider_code == "meteoclimatic" and claim.kind == "catalog":
+            if claim.kind == "history":
+                from meteocentro.history_import import run_history
+
+                result, cursor = run_history(queue, claim, adapter, after_chunk=after_chunk)
+            elif queue.provider_code == "meteoclimatic" and claim.kind == "catalog":
                 result, cursor = MeteoclimaticCatalog(queue, claim, adapter).run()
             else:
                 batch = adapter.download(claim.kind)
@@ -146,7 +150,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--once",
-        choices=("current", "inventory", "catalog"),
+        choices=("current", "inventory", "catalog", "history"),
         help="one due job; respects scheduling, leases and quotas",
     )
     parser.add_argument("--provider", choices=("aemet", "meteoclimatic"))
@@ -182,6 +186,11 @@ def main() -> int:
                 else:
                     emit(providers=[status(queue) for queue in queues])
                 return 0
+            from meteocentro.history import refresh_aggregates
+            from meteocentro.history_maintenance import schedule_maintenance
+
+            schedule_maintenance(get_engine())
+            refresh_aggregates(get_engine())
             for queue in queues:
                 queue.schedule()
             if args.resume:

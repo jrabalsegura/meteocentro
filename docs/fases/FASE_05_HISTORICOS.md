@@ -41,14 +41,18 @@ Dependencias: ingestión y contratos de las redes habilitadas, más la ficha de 
 
 ## Comprobación de salida
 
-- [ ] Probar un día de 23 horas y uno de 25 horas, incluido el intervalo repetido de otoño.
-- [ ] Probar cero real, hueco, contador que se reinicia, corrección hacia abajo y lluvia horaria solapada.
-- [ ] Una serie sin archivo anterior muestra “sin datos disponibles” y su fecha inicial.
-- [ ] La importación antigua no sustituye la última lectura actual ni duplica el histórico.
-- [ ] Una corrección de origen recalcula los periodos afectados.
-- [ ] Los extremos del archivo indican intervalo disponible; no se presentan como récord absoluto universal.
-- [ ] Un CSV respeta exclusiones, límites y autorización; campos de texto no ejecutan fórmulas al abrirlo en una hoja de cálculo.
-- [ ] Las consultas de un año se prueban con volumen representativo y se documentan latencia y plan de consulta.
+- [x] Probar un día de 23 horas y uno de 25 horas, incluido el intervalo repetido de otoño.
+- [x] Probar cero real, hueco, contador que se reinicia, corrección hacia abajo y lluvia horaria solapada.
+- [x] Una serie sin archivo anterior muestra “sin datos disponibles” y su fecha inicial.
+- [x] La importación antigua no sustituye la última lectura actual ni duplica el histórico.
+- [x] Una corrección de origen recalcula los periodos afectados.
+- [x] Los extremos del archivo indican intervalo disponible; no se presentan como récord absoluto universal.
+- [x] Un CSV respeta exclusiones, límites y autorización; campos de texto no ejecutan fórmulas al abrirlo en una hoja de cálculo.
+- [x] Las consultas de un año se prueban con volumen representativo y se documentan latencia y plan de consulta.
+
+## Cierre local — 21 de septiembre de 2026
+
+Implementada y validada: 153 pruebas de backend con PostgreSQL real y once recorridos de navegador, incluidos gráficos en móvil y escritorio. Piloto real AEMET de treinta días para un origen, separado de fixtures. Consultas anuales medidas sobre 1.051.200 observaciones sintéticas de una métrica; no acredita el volumen futuro multimétrica. El diario remoto y CSV Meteoclimatic siguen pendientes del producto autorizado. La migración de particiones requiere mantenimiento al desplegar; la retención solo se simula. No hay despliegue remoto ni purga. Contrato, resultados y límites en [HISTORICOS_FASE_5.md](../HISTORICOS_FASE_5.md) y [ESTADO.md](../ESTADO.md).
 
 ## Prompt para Codex
 

@@ -13,6 +13,24 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%"
 target_metadata = Base.metadata
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    # Physical child partitions are maintained by the worker, not ORM tables.
+    if (
+        type_ == "table"
+        and reflected
+        and name.startswith("observations_")
+        and name != "observations"
+    ):
+        return False
+    if type_ == "foreign_key_constraint" and reflected:
+        if any(
+            element.target_fullname.split(".")[0].startswith("observations_")
+            for element in obj.elements
+        ):
+            return False  # PostgreSQL's automatic child-partition FKs.
+    return True
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
@@ -31,7 +49,12 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            include_object=include_object,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

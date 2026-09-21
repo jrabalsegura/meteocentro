@@ -112,6 +112,7 @@ class Ingestor:
             db.add(
                 ObservationRevision(
                     observation_id=observation.id,
+                    observation_at=observation.observed_at,
                     previous_metrics=observation.metrics,
                     previous_quality=observation.quality,
                     previous_payload_hash=observation.payload_hash,

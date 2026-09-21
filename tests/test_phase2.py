@@ -322,7 +322,9 @@ def test_idempotence_correction_and_monotonic_latest(queue, db):
     db.expire_all()
     assert count(db, ObservationRevision) == 3
     assert (
-        db.get(Observation, latest.observation_id).metrics["temperature"]["value"]
+        db.get(Observation, (latest.observation_id, latest.observed_at)).metrics[
+            "temperature"
+        ]["value"]
         == "2"
     )
     commit_batch(queue, batch([{**ROW, "ta": None}]))

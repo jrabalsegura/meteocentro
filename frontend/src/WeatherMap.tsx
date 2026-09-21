@@ -27,10 +27,12 @@ const tiles = {
     import.meta.env.VITE_LIGHT_TILES_URL || wmts("ign-base", "IGNBaseTodo"),
 };
 export type View = { lng: number; lat: number; zoom: number };
+// User-selected Madrid city view. Explicit URL views take precedence.
+const DEFAULT_VIEW: View = { lng: -3.70765, lat: 40.42437, zoom: 10.69 };
 const coords = boundaries.features.flatMap(
   (f) => f.geometry.coordinates.flat(2) as unknown as number[][],
 );
-// The checked-in province union, not a capital or a geolocation request.
+// Full province extent for the explicit overview button.
 const bounds = coords.reduce(
   (b, p) => b.extend(p as [number, number]),
   new maplibregl.LngLatBounds(),
@@ -107,7 +109,7 @@ export default function WeatherMap({
   const [revision, setRevision] = useState(0);
   const callbacks = useRef({ onView, onSelect });
   callbacks.current = { onView, onSelect };
-  const firstView = useRef(initialView);
+  const firstView = useRef(initialView ?? DEFAULT_VIEW);
   useEffect(() => {
     let instance: LibreMap;
     try {
@@ -123,10 +125,8 @@ export default function WeatherMap({
           "Popup.Close": "Cerrar grupo",
           "AttributionControl.ToggleAttribution": "Mostrar atribución",
         },
-        center: firstView.current
-          ? [firstView.current.lng, firstView.current.lat]
-          : [-3.9, 40.7],
-        zoom: firstView.current?.zoom ?? 7,
+        center: [firstView.current.lng, firstView.current.lat],
+        zoom: firstView.current.zoom,
         minZoom: 5,
         maxZoom: 18,
         attributionControl: false,
@@ -141,8 +141,6 @@ export default function WeatherMap({
         new maplibregl.AttributionControl({ compact: false }),
         "bottom-right",
       );
-      if (!firstView.current)
-        instance.fitBounds(bounds, { padding: 38, duration: 0 });
       instance.on("load", () => {
         setReady(true);
         setRevision((n) => n + 1);

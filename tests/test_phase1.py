@@ -15,10 +15,7 @@ from meteocentro.domain.observations import (
     normalized_measurement,
 )
 from meteocentro.domain.providers import Capabilities, ProviderAdapter, ResultStatus
-from meteocentro.domain.provinces import (
-    classify_minute_precision_location,
-    classify_province,
-)
+from meteocentro.domain.provinces import classify_province
 from meteocentro.models import (
     Exclusion,
     Observation,
@@ -170,9 +167,8 @@ def test_province_classification_uses_full_geometry_and_boundary_rule():
         "05": Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
     }
     assert classify_province(1, 0.5, adjacent) == "05"
-    assert classify_minute_precision_location(0.5, 0.5, adjacent) == "28"
-    assert classify_minute_precision_location(0.99, 0.5, adjacent) is None
-    assert classify_minute_precision_location(-3.7038, 40.4168) == "28"
+    assert classify_province(0.99, 0.5, adjacent) == "28"
+    assert classify_province(1.01, 0.5, adjacent) == "05"
 
 
 def test_adapter_unsupported_is_not_empty_success():

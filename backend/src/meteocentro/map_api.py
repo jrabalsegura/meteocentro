@@ -104,6 +104,7 @@ def read_rows(db, candidates, metric=None):
             Observation,
             and_(
                 Observation.id == LatestObservation.observation_id,
+                Observation.observed_at == LatestObservation.observed_at,
                 Observation.source_id == StationSource.id,
             ),
         )

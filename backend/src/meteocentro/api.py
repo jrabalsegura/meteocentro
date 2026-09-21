@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from meteocentro.config import get_settings
 from meteocentro.db import get_session
 from meteocentro.domain.eligibility import eligible_source_ids, eligible_station_ids
+from meteocentro.history_api import router as history_router
 from meteocentro.map_api import router as map_router
 from meteocentro.models import (
     DailySummary,
@@ -41,6 +42,7 @@ app = FastAPI(
 )
 DbSession = Annotated[Session, Depends(get_session)]
 app.include_router(map_router)
+app.include_router(history_router)
 
 
 @app.middleware("http")
@@ -293,7 +295,8 @@ def latest_observations(station_id: UUID, db: DbSession):
         .join(
             Observation,
             (LatestObservation.observation_id == Observation.id)
-            & (LatestObservation.source_id == Observation.source_id),
+            & (LatestObservation.source_id == Observation.source_id)
+            & (LatestObservation.observed_at == Observation.observed_at),
         )
         .where(LatestObservation.source_id.in_(eligible_source_ids(station_id)))
         .order_by(LatestObservation.metric, LatestObservation.source_id)

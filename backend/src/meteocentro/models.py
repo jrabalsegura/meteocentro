@@ -1,12 +1,14 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -152,11 +154,15 @@ class Observation(Base):
             "period_basis IS NOT NULL AND period_end > period_start)",
             name="observation_period_pair",
         ),
+        Index("ix_observations_source_time", "source_id", "observed_at"),
+        {"postgresql_partition_by": "RANGE (observed_at)"},
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
     source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("station_sources.id"), index=True)
     product: Mapped[str] = mapped_column(String(100))
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), primary_key=True, index=True
+    )
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -171,7 +177,15 @@ class Observation(Base):
 class ObservationRevision(Base):
     __tablename__ = "observation_revisions"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
-    observation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("observations.id"), index=True)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["observation_id", "observation_at"],
+            ["observations.id", "observations.observed_at"],
+            name="fk_revision_observation",
+        ),
+    )
+    observation_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    observation_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     previous_metrics: Mapped[dict] = mapped_column(JSONB)
     previous_quality: Mapped[dict] = mapped_column(JSONB)
@@ -180,11 +194,18 @@ class ObservationRevision(Base):
 
 class LatestObservation(Base):
     __tablename__ = "latest_observations"
-    __table_args__ = (UniqueConstraint("source_id", "metric", name="uq_latest_source_metric"),)
+    __table_args__ = (
+        UniqueConstraint("source_id", "metric", name="uq_latest_source_metric"),
+        ForeignKeyConstraint(
+            ["observation_id", "observed_at"],
+            ["observations.id", "observations.observed_at"],
+            name="fk_latest_observation",
+        ),
+    )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
     source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("station_sources.id"))
     metric: Mapped[str] = mapped_column(String(80))
-    observation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("observations.id"))
+    observation_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -198,6 +219,7 @@ class DailySummary(Base):
             "period_end",
             "period_basis",
             "method",
+            "channel",
             name="uq_daily_summary",
         ),
         CheckConstraint("period_end > period_start", name="daily_summary_window"),
@@ -209,6 +231,9 @@ class DailySummary(Base):
     period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     period_basis: Mapped[str] = mapped_column(String(100))
     method: Mapped[str] = mapped_column(String(30))
+    channel: Mapped[str] = mapped_column(String(64), server_default="", default="")
+    provenance: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
+    provisional: Mapped[bool] = mapped_column(Boolean, server_default="true", default=True)
     coverage: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     metrics: Mapped[dict] = mapped_column(JSONB)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -217,13 +242,18 @@ class DailySummary(Base):
 class HourlyAggregate(Base):
     __tablename__ = "hourly_aggregates"
     __table_args__ = (
-        UniqueConstraint("source_id", "metric", "period_start", name="uq_hourly_aggregate"),
+        UniqueConstraint(
+            "source_id", "metric", "channel", "period_start", name="uq_hourly_aggregate"
+        ),
+        Index("ix_hourly_source_metric_time", "source_id", "metric", "period_start"),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
     source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("station_sources.id"))
     metric: Mapped[str] = mapped_column(String(80))
     period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    channel: Mapped[str] = mapped_column(String(64), server_default="", default="")
+    stats: Mapped[dict] = mapped_column(JSONB, server_default="{}", default=dict)
     minimum: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     maximum: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     mean: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
@@ -312,6 +342,7 @@ class ProviderRuntime(Base):
     provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("providers.id"), primary_key=True)
     day_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     day_calls: Mapped[int] = mapped_column(Integer, default=0)
+    history_calls: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
     recent_calls: Mapped[list] = mapped_column(JSONB, default=list)
     blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pause_reason: Mapped[str | None] = mapped_column(String(100))
@@ -348,3 +379,18 @@ class AdminSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AggregateDirtyDay(Base):
+    __tablename__ = "aggregate_dirty_days"
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("station_sources.id"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DailySummaryRevision(Base):
+    __tablename__ = "daily_summary_revisions"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    summary_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("daily_summaries.id"), index=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    previous: Mapped[dict] = mapped_column(JSONB)

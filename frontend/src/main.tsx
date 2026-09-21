@@ -19,6 +19,7 @@ import {
 } from "./data";
 import type { View } from "./WeatherMap";
 import "./style.css";
+const HistoryPage = lazy(() => import("./HistoryPage"));
 const WeatherMap = lazy(() => import("./WeatherMap"));
 
 function readLocation() {
@@ -64,6 +65,7 @@ function App() {
     ? route.params.get("metric")!
     : "temperature";
   const info = metricInfo[metric];
+  const isHistory = route.path === "/historicos" || route.path === "/diarios";
   const isTable = route.path === "/estaciones";
   const detailId = route.path.startsWith("/estaciones/")
     ? route.path.split("/")[2]
@@ -314,7 +316,7 @@ function App() {
         </a>
         <nav aria-label="Principal">
           <a
-            className={!isTable ? "active" : ""}
+            className={!isTable && !isHistory ? "active" : ""}
             href={tabHref("/")}
             onClick={(e) => {
               e.preventDefault();
@@ -333,12 +335,22 @@ function App() {
           >
             Estaciones
           </a>
-          <span title="Disponible en fase 5">
-            Datos diarios <small>Próximamente</small>
-          </span>
-          <span title="Disponible en fase 5">
-            Históricos <small>Próximamente</small>
-          </span>
+          {[
+            ["/diarios", "Datos diarios"],
+            ["/historicos", "Históricos"],
+          ].map(([path, label]) => (
+            <a
+              key={path}
+              className={route.path === path ? "active" : ""}
+              href={tabHref(path)}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(path);
+              }}
+            >
+              {label}
+            </a>
+          ))}
         </nav>
         <div className="header-region">
           Madrid · Ávila
@@ -347,6 +359,18 @@ function App() {
         </div>
       </header>
       <main id="content">
+        {isHistory ? (
+          <Suspense fallback={<p>Abriendo archivo…</p>}>
+            <HistoryPage
+              stations={stations}
+              stationId={selectedId}
+              networkView={route.path === "/diarios"}
+              onChoose={(id) => navigate("/historicos", { station: id })}
+              refresh={refresh}
+            />
+          </Suspense>
+        ) : (
+          <>
         <section className="workspace-heading">
           <div>
             <div className="eyebrow">RED DE OBSERVACIÓN</div>
@@ -477,8 +501,8 @@ function App() {
         {data?.truncated && (
           <div className="notice" role="status">
             Se muestran {stations.length} de {data.total} estaciones como
-            mínimo. Acota los filtros; los extremos están desactivados para esta
-            selección parcial.
+            mínimo. Acota los filtros; los extremos están desactivados para
+            esta selección parcial.
           </div>
         )}
         {providers
@@ -496,7 +520,8 @@ function App() {
             <strong>{data?.registered ?? "—"}</strong> registradas
           </span>
           <span>
-            <strong>{data?.counts.fresh ?? (data ? 0 : "—")}</strong> recientes
+            <strong>{data?.counts.fresh ?? (data ? 0 : "—")}</strong>{" "}
+            recientes
           </span>
           <span>
             <strong>{data?.counts.stale ?? (data ? 0 : "—")}</strong>{" "}
@@ -511,10 +536,14 @@ function App() {
             </strong>{" "}
             sin dato actual
           </span>
-          <small>Según variable y filtros · {stations.length} visibles</small>
+          <small>
+            Según variable y filtros · {stations.length} visibles
+          </small>
         </div>
         {!isTable && (
-          <div className={`map-workspace ${selectedId ? "has-selection" : ""}`}>
+          <div
+            className={`map-workspace ${selectedId ? "has-selection" : ""}`}
+          >
             <Suspense
               fallback={
                 <div className="map-loading">
@@ -560,9 +589,14 @@ function App() {
               >
                 <div className="panel-top">
                   <span>
-                    {detailId ? "FICHA DE ESTACIÓN" : "ESTACIÓN SELECCIONADA"}
+                    {detailId
+                      ? "FICHA DE ESTACIÓN"
+                      : "ESTACIÓN SELECCIONADA"}
                   </span>
-                  <button aria-label="Cerrar ficha" onClick={closeSelection}>
+                  <button
+                    aria-label="Cerrar ficha"
+                    onClick={closeSelection}
+                  >
                     ×
                   </button>
                 </div>
@@ -605,8 +639,9 @@ function App() {
                       </p>
                     )}
                     <p className="selection-policy">
-                      Preferencia: datos recientes utilizables, AEMET y después
-                      Meteoclimatic. La fuente se indica en cada medida.
+                      Preferencia: datos recientes utilizables, AEMET y
+                      después Meteoclimatic. La fuente se indica en cada
+                      medida.
                     </p>
                     {!detailId && (
                       <>
@@ -622,7 +657,8 @@ function App() {
                           <ReadingMeta reading={preferred} />
                         ) : (
                           <p>
-                            Sin dato de esta variable en la fuente seleccionada.
+                            Sin dato de esta variable en la fuente
+                            seleccionada.
                           </p>
                         )}
                         <button
@@ -645,16 +681,20 @@ function App() {
                           <details className="reported-daily">
                             <summary>Valores diarios reportados</summary>
                             <p>
-                              Horario diario desconocido. No son resúmenes de un
-                              día civil validado.
+                              Horario diario desconocido. No son resúmenes
+                              de un día civil validado.
                             </p>
                             {dailyMetrics.map(readingCard)}
                           </details>
                         )}
-                        <div className="history-placeholder">
-                          Los gráficos y el archivo histórico se incorporarán en
-                          la fase 5.
-                        </div>
+                        <button
+                          className="primary-button"
+                          onClick={() =>
+                            navigate("/historicos", { station: detail.id })
+                          }
+                        >
+                          Explorar históricos y gráficos ↗
+                        </button>
                       </>
                     )}
                     <details className="station-metadata">
@@ -700,8 +740,9 @@ function App() {
                           navigate(backPath);
                         }}
                       >
-                        ← Volver a {backPath === "/" ? "mapa" : "estaciones"}{" "}
-                        con los filtros
+                        ← Volver a{" "}
+                        {backPath === "/" ? "mapa" : "estaciones"} con los
+                        filtros
                       </a>
                     )}
                   </>
@@ -737,17 +778,17 @@ function App() {
         </section>
         {metric === "wind_speed" && (
           <p className="context-note">
-            La dirección indica de dónde viene el viento: 0° norte, 90° este; la
-            flecha apunta hacia su destino. La máxima diaria y la racha no se
-            usan como velocidad actual.
+            La dirección indica de dónde viene el viento: 0° norte, 90°
+            este; la flecha apunta hacia su destino. La máxima diaria y la
+            racha no se usan como velocidad actual.
           </p>
         )}
         {metric === "rain" && (
           <p className="context-note">
             Meteoclimatic aporta un contador diario de horario desconocido,
             disponible en su ficha. No se representa como lluvia horaria. La
-            intensidad y la racha del intervalo aún no están disponibles en las
-            fuentes integradas.
+            intensidad y la racha del intervalo aún no están disponibles en
+            las fuentes integradas.
           </p>
         )}
         <section className="extremes" aria-label="Extremos comparables">
@@ -776,7 +817,9 @@ function App() {
                   >
                     <small>{i === 0 ? "MENOR VALOR" : "MAYOR VALOR"}</small>
                     <strong
-                      style={{ color: color(extreme.reading.value, metric) }}
+                      style={{
+                        color: color(extreme.reading.value, metric),
+                      }}
                     >
                       {number(extreme.reading.value)}{" "}
                       <span>{extreme.reading.unit}</span>
@@ -794,7 +837,9 @@ function App() {
                   ? "Todas las estaciones seleccionadas"
                   : "Las estaciones, al detalle"}
               </h2>
-              <p>La misma selección del mapa · {stations.length} estaciones</p>
+              <p>
+                La misma selección del mapa · {stations.length} estaciones
+              </p>
             </div>
             <a
               href={tabHref(isTable ? "/" : "/estaciones")}
@@ -809,8 +854,8 @@ function App() {
           <div className="table-scroll">
             <table>
               <caption className="sr-only">
-                Observaciones de {info.label}. Las cabeceras permiten ordenar.
-                Las filas seleccionan una estación en el mapa.
+                Observaciones de {info.label}. Las cabeceras permiten
+                ordenar. Las filas seleccionan una estación en el mapa.
               </caption>
               <thead>
                 <tr>
@@ -842,7 +887,11 @@ function App() {
                         }}
                       >
                         {name}{" "}
-                        {sort.key === key ? (sort.descending ? "↓" : "↑") : "↕"}
+                        {sort.key === key
+                          ? sort.descending
+                            ? "↓"
+                            : "↑"
+                          : "↕"}
                       </button>
                     </th>
                   ))}
@@ -854,7 +903,9 @@ function App() {
                 {sorted.slice(page * 50, page * 50 + 50).map((station) => (
                   <tr
                     key={station.id}
-                    className={selectedId === station.id ? "selected-row" : ""}
+                    className={
+                      selectedId === station.id ? "selected-row" : ""
+                    }
                   >
                     <td>
                       <button
@@ -884,7 +935,9 @@ function App() {
                     <td>
                       <strong
                         className="table-value"
-                        style={{ color: color(station.reading?.value, metric) }}
+                        style={{
+                          color: color(station.reading?.value, metric),
+                        }}
                       >
                         {number(station.reading?.value)}
                       </strong>
@@ -902,7 +955,9 @@ function App() {
                         station.sources
                           .map((s) => s.provider.toUpperCase())
                           .join(" · ")}
-                      {station.fallback && <small>Origen alternativo</small>}
+                      {station.fallback && (
+                        <small>Origen alternativo</small>
+                      )}
                       <small>
                         {station.reading
                           ? period(station.reading)
@@ -934,7 +989,10 @@ function App() {
                 ? `${page * 50 + 1}–${Math.min((page + 1) * 50, stations.length)} de ${stations.length}`
                 : "0 estaciones"}
             </span>
-            <button disabled={page === 0} onClick={() => setPage((n) => n - 1)}>
+            <button
+              disabled={page === 0}
+              onClick={() => setPage((n) => n - 1)}
+            >
               Anterior
             </button>
             <button
@@ -945,6 +1003,8 @@ function App() {
             </button>
           </div>
         </section>
+          </>
+        )}
         <footer>
           <strong>Meteocentro</strong>
           <p>

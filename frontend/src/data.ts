@@ -221,3 +221,31 @@ export async function api<T>(url: string, signal: AbortSignal): Promise<T> {
     );
   return response.json() as Promise<T>;
 }
+
+export function historyMethod(method: string) {
+  return (
+    (
+      {
+        source_observation: "Observación original",
+        "local-v1": "Cálculo Meteocentro",
+        provider: "Diario del proveedor",
+      } as Record<string, string>
+    )[method] ?? method
+  );
+}
+export function historyPeriod(basis: string | undefined) {
+  return (
+    (
+      {
+        "Europe/Madrid": "Día civil de Madrid",
+        UTC_hour: "Hora UTC",
+        AEMET_07_07_UTC: "Día pluviométrico · 07–07 UTC",
+        AEMET_provider_date:
+          "Fecha del proveedor · límites diarios no acreditados",
+        provider_day_timezone_unknown: "Horario de reinicio desconocido",
+      } as Record<string, string>
+    )[basis ?? ""] ??
+    basis ??
+    "Instantánea"
+  );
+}

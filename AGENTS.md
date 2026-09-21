@@ -6,6 +6,8 @@ Desarrollar la especificación de `docs/00_RESUMEN_GLOBAL.md` por fases. La prio
 
 Alcance vigente: AEMET y Meteoclimatic para la primera versión. Wunderground es una ampliación opcional aplazada por coste y falta de clave. No dedicar su implementación ni sus pruebas reales a una fase ordinaria salvo que se solicite reactivarlo; conservar el contrato extensible de proveedores. Consultar `docs/COSTE_Y_ACCESO_DATOS.md`.
 
+Preferencia de interfaz vigente: al abrir sin una vista válida en la URL, centrar el mapa en Madrid ciudad (longitud -3.70765, latitud 40.42437, zoom 10.69). Conservar esta vista inicial en futuras fases. Los enlaces con centro/zoom explícitos prevalecen y el botón «Ver las cuatro provincias» mantiene el encuadre regional.
+
 ## Forma de trabajo
 
 - Leer el resumen, las decisiones, el estado y la fase solicitada antes de editar.

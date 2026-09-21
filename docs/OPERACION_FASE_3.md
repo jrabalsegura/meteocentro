@@ -8,6 +8,8 @@ Aplicar `backend/.venv/bin/alembic -c backend/alembic.ini upgrade head` con `DAT
 
 La API solo lee PostgreSQL. `python -m meteocentro.worker` atiende AEMET y Meteoclimatic por turnos; una pausa, denegación o cuota agotada afecta únicamente a su proveedor. El perfil Compose `ingestion` sigue siendo explícito. Los permisos y claves se pasan al worker, nunca al frontend.
 
+**Primer arranque con base vacía:** el primer XML descubre identidades, pero no incluye coordenadas. El catálogo verifica después las fichas en lotes; una estación ya ubicada puede aparecer en el mapa todavía sin observaciones. Los datos se incorporan en la siguiente consulta ordinaria del XML (cada quince minutos), una vez resuelta su ubicación. La web refresca cada sesenta segundos. Si siguen todas sin datos después de ese ciclo, revisar `--status` y los registros del worker; no atribuir indefinidamente el problema al arranque ni forzar consultas fuera de la cadencia.
+
 | Variable | Valor inicial | Efecto |
 | --- | --- | --- |
 | `AEMET_ENABLED` | `true` | Permite programar AEMET; sigue necesitando su clave |
@@ -56,13 +58,13 @@ backend/.venv/bin/python -m meteocentro.catalog_cli add \
   --evidence REFERENCIA_DE_LA_FUENTE_Y_PERMISO
 ```
 
-El alta manual no acredita emisión actual: registra `manual_registration`, y el lote observado acredita `current`. `minute` aplica incertidumbre ±1 minuto en ambos ejes; un caso fronterizo queda en revisión. `exact` requiere coordenadas realmente verificadas con mayor precisión. No se geocodifican municipios ni se accede a endpoints internos del mapa. Las fichas públicas son la fuente documentada de esta implementación, con identidad, precisión y fecha verificadas. Las altas sin posición pueden resolverse con el segundo comando; otras decisiones de moderación no se revierten. Cada operación manual queda auditada.
+El alta manual no acredita emisión actual: registra `manual_registration`, y el lote observado acredita `current`. `minute` conserva la precisión aproximada: por petición del usuario del 21-9-2026, la provincia se asigna según el punto publicado y la cercanía al límite no bloquea la estación. `exact` requiere coordenadas realmente verificadas con mayor precisión. No se geocodifican municipios ni se accede a endpoints internos del mapa. Las fichas públicas son la fuente documentada de esta implementación, con identidad, precisión y fecha verificadas. Las altas sin posición pueden resolverse con el segundo comando; otras decisiones de moderación no se revierten. Cada operación manual queda auditada.
 
 La revisión diaria de catálogo aprovecha el lote descargado: tras tres revisiones diarias consecutivas sin un origen señala `missing_in_feed`; no borra ni oculta el archivo. Una caída HTTP no cuenta como ausencia. Repetir el mismo lote confirmado no incrementa revisiones diarias. La reaparición limpia únicamente esa marca de ausencia. La frescura permanece separada.
 
 Un cambio de posición superior a 0,002 grados mantiene la posición canónica, registra su instantánea en `station_location_history`, la propuesta en metadatos y un evento de auditoría, y exige revisión. La instantánea no declara confirmado un traslado ni cierra artificialmente su vigencia.
 
-Se proponen duplicados entre redes a menos de 250 m, ampliando a 3 km cuando interviene precisión a minutos o nombre coincidente. Son umbrales conservadores de revisión, no pruebas de identidad. También se revisa un ID nuevo próximo a un origen excluido de la misma red. Las parejas son únicas y el origen nuevo queda en revisión; no se fusionan automáticamente estaciones ni series. Una vinculación explícita conserva procedencia y necesita evidencia:
+Se proponen duplicados entre redes hasta 250 m, ampliando a 1 km cuando interviene precisión a minutos o nombre coincidente. El usuario redujo este umbral ampliado de 3 km a 1 km el 21-9-2026. Son umbrales conservadores de revisión, no pruebas de identidad. También se revisa un ID nuevo próximo a un origen excluido de la misma red. Las parejas son únicas y el origen nuevo queda en revisión; no se fusionan automáticamente estaciones ni series. Una vinculación explícita conserva procedencia y necesita evidencia:
 
 ```sh
 backend/.venv/bin/python -m meteocentro.catalog_cli link \
@@ -70,6 +72,22 @@ backend/.venv/bin/python -m meteocentro.catalog_cli link \
 ```
 
 La estación canónica elegida conserva nombre y posición. La exclusión del destino se hereda de forma efectiva; sacar un origen de una estación excluida conserva la exclusión de ese origen. La elección de una fuente para un único marcador y su señalización visual corresponden al mapa de fase 4; la API aún entrega series separadas y no suma lluvia entre orígenes.
+
+Para aplicar expresamente el umbral reducido a candidatos antiguos, hay un comando local sin HTTP. Por defecto simula la operación y revierte la transacción; `--apply` confirma. Las parejas pendientes fuera de 1 km quedan como `outside_radius`, conservadas con auditoría. Solo se libera una estación cuya única revisión era esa coincidencia, con ubicación acreditada dentro del ámbito y sin exclusión, traslado propuesto, otras parejas ni fuentes vinculadas.
+
+```sh
+docker compose run --rm --no-deps worker python -m meteocentro.catalog_cli \
+  recheck-duplicates --evidence 'Cambio autorizado del umbral a 1 km'
+# Añadir --apply tras revisar el resultado para confirmarlo.
+```
+
+El mismo procedimiento permite resolver las revisiones antiguas `uncertain_boundary` con el criterio de provincia aproximada, conservando las demás protecciones. No descarga observaciones; llegan en la siguiente consulta ordinaria del XML.
+
+```sh
+docker compose run --rm --no-deps worker python -m meteocentro.catalog_cli \
+  recheck-boundaries --evidence 'Aceptación de provincia aproximada junto al límite'
+# Añadir --apply para confirmar la revisión auditada.
+```
 
 `identity_exclusions` permite vetar `(provider_id, external_id)` antes de descubrirlo. Su trigger toma el mismo bloqueo de identidad que el catálogo. Las exclusiones existentes de estación/origen se vuelven a consultar tras tomar el bloqueo de estación. La misma elegibilidad se aplica a ficha, lista, últimos valores y series/diarios; el alta manual tampoco elude exclusiones. No se cambia nada en las redes externas.
 

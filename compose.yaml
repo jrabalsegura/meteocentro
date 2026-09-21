@@ -32,6 +32,7 @@ services:
       context: .
       dockerfile: deploy/containers/api.Dockerfile
     environment:
+      HISTORY_COVERAGE_THRESHOLD: ${HISTORY_COVERAGE_THRESHOLD:-0.9}
       DATABASE_URL: postgresql+psycopg://meteocentro:${POSTGRES_PASSWORD}@db:5432/meteocentro
     depends_on:
       migrate:
@@ -44,10 +45,12 @@ services:
 
   web:
     image: node:24.21.0-alpine
-    working_dir: /app
+    working_dir: /app/frontend
     volumes:
-      - ./frontend:/app
-      - frontend_node_modules:/app/node_modules
+      - ./frontend:/app/frontend
+      # Preserve the relative import from frontend/src/WeatherMap.tsx.
+      - ./config/provinces.geojson:/app/config/provinces.geojson:ro
+      - frontend_node_modules:/app/frontend/node_modules
     environment:
       VITE_API_PROXY_TARGET: http://api:8000
     command: ["sh", "-c", "npm ci && npm run dev -- --host 0.0.0.0"]
@@ -65,6 +68,9 @@ services:
     command: ["python", "-m", "meteocentro.worker"]
     restart: unless-stopped
     environment:
+      HISTORY_DAILY_HTTP_BUDGET: ${HISTORY_DAILY_HTTP_BUDGET:-20}
+      HISTORY_COVERAGE_THRESHOLD: ${HISTORY_COVERAGE_THRESHOLD:-0.9}
+      DETAIL_RETENTION_MONTHS: ${DETAIL_RETENTION_MONTHS:-24}
       DATABASE_URL: postgresql+psycopg://meteocentro:${POSTGRES_PASSWORD}@db:5432/meteocentro
       AEMET_ENABLED: ${AEMET_ENABLED:-true}
       METEOCLIMATIC_ENABLED: ${METEOCLIMATIC_ENABLED:-false}

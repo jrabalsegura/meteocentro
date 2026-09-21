@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class MetricKind(StrEnum):
     INSTANT = "instant"
     INTERVAL_MEAN = "interval_mean"
+    INTERVAL_MAXIMUM = "interval_maximum"
     INTERVAL_TOTAL = "interval_total"
     DAILY_COUNTER = "daily_counter"
     DAILY_MINIMUM = "daily_minimum"

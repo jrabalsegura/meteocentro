@@ -48,6 +48,8 @@ La revisión de Suremet confirmó un mapa topográfico con marcadores numéricos
 
 La navegación principal será **Mapa**, **Estaciones**, **Datos diarios** e **Históricos**; la gestión estará en un acceso separado. En móvil, la ficha se abrirá en un panel inferior y los filtros serán plegables. El cambio de variable no debe reiniciar la posición del mapa. Las leyendas incluyen unidad, periodo y significado del color; el color no es la única forma de leer un dato.
 
+**Vista inicial acordada el 21-9-2026:** Madrid ciudad, centro `[-3.70765, 40.42437]` (longitud, latitud), zoom `10.69`. Se mantiene como preferencia en futuras fases. Los enlaces con `view` válido abren su encuadre; sin él se abre Madrid. «Ver las cuatro provincias» permite volver a la vista regional. Esta elección visual mantiene la cobertura y los filtros disponibles para las cuatro provincias y ambas redes.
+
 Se conserva el carácter de portal meteorológico de Suremet, con información abundante y acceso rápido. Se propone una cabecera compacta con tonos azul y violeta, fondo claro, mapa topográfico y tablas legibles. No se reutilizan su logo, sus gráficos ni su código.
 
 Las secciones de asociación, altas de socios y repositorio científico son propias de la organización de Suremet y no forman parte de este producto. Pronósticos, radar, alertas, webcams, aplicación nativa y widget público quedan como ampliaciones a valorar, sin retrasar el mapa ni los históricos solicitados.

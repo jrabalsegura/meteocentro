@@ -1246,3 +1246,245 @@ footer div {
     min-width: 225px;
   }
 }
+
+/* Historical archive keeps dense metadata in a scrollable table, not in the plot. */
+.history-page {
+  max-width: 1440px;
+  margin: auto;
+  padding-bottom: 30px;
+}
+.history-page .workspace-heading p {
+  color: #536278;
+  margin-bottom: 0;
+}
+.history-controls {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: white;
+  padding: 18px;
+  border: 1px solid #dae1ec;
+  border-radius: 10px;
+  margin: 16px 0;
+}
+.history-controls label,
+.history-method {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 0.8rem;
+  color: #43546b;
+  min-width: 170px;
+  flex: 1;
+}
+.history-controls select,
+.history-controls input,
+.history-method select {
+  min-height: 42px;
+  padding: 7px;
+  border: 1px solid #bdc8d9;
+  border-radius: 6px;
+  background: white;
+  color: #142b46;
+  width: 100%;
+}
+.history-tabs,
+.history-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0;
+}
+.history-tabs {
+  border-bottom: 1px solid #ced8e6;
+  padding-bottom: 16px;
+}
+.history-page button {
+  padding: 9px 14px;
+  border: 1px solid #cbd5e4;
+  border-radius: 6px;
+  background: white;
+  color: #284565;
+  cursor: pointer;
+}
+.history-page button[aria-pressed="true"] {
+  background: #244a75;
+  border-color: #244a75;
+  color: white;
+}
+.history-page button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.history-method {
+  max-width: 300px;
+  margin: 18px 0;
+}
+.coverage-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #d6e0ea;
+  background: #edf3f9;
+  border-radius: 9px;
+  margin: 18px 0;
+}
+.coverage-strip > div {
+  padding: 18px 22px;
+  border-right: 1px solid #d6e0ea;
+}
+.coverage-strip span,
+.coverage-strip strong,
+.coverage-strip small {
+  display: block;
+}
+.coverage-strip span {
+  color: #596d85;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+}
+.coverage-strip strong {
+  margin: 8px 0;
+  font-size: 1.05rem;
+}
+.coverage-strip small {
+  color: #526980;
+}
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+.chart-toolbar > div {
+  display: flex;
+  gap: 6px;
+}
+.history-chart {
+  width: 100%;
+  height: 440px;
+  background: white;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+}
+.history-empty {
+  padding: 55px 22px;
+  background: white;
+  border: 1px dashed #afbed1;
+  border-radius: 10px;
+  text-align: center;
+  color: #536983;
+}
+.chart-note {
+  font-size: 0.8rem;
+  color: #50677f;
+  line-height: 1.6;
+}
+.history-table {
+  background: white;
+  max-width: 100%;
+}
+.history-table table {
+  min-width: 890px;
+  width: 100%;
+}
+.history-table caption {
+  text-align: left;
+  padding: 16px;
+  color: #4b627a;
+}
+.history-table small,
+.history-extremes small {
+  display: block;
+  margin-top: 7px;
+  font-weight: normal;
+}
+.history-table td {
+  vertical-align: top;
+}
+.history-table details {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.history-extremes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 15px;
+  margin: 20px 0;
+}
+.history-extremes article,
+.record-card {
+  padding: 22px;
+  border: 1px solid #d8e1ed;
+  background: white;
+  border-radius: 10px;
+}
+.history-extremes strong {
+  display: block;
+  font-size: 2rem;
+  color: #285d83;
+  margin: 14px 0;
+}
+.history-extremes span {
+  font-size: 0.8rem;
+  color: #506681;
+}
+.record-card {
+  margin: 18px 0;
+}
+.record-card h2 {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .history-controls {
+    flex-direction: column;
+    padding: 14px;
+  }
+  .history-controls label {
+    min-width: 0;
+  }
+  .coverage-strip {
+    grid-template-columns: 1fr;
+  }
+  .coverage-strip > div {
+    padding: 14px 18px;
+    border-right: 0;
+    border-bottom: 1px solid #d6e0ea;
+  }
+  .history-chart {
+    height: 350px;
+  }
+  .history-page .workspace-heading {
+    display: block;
+  }
+  .history-page .workspace-heading h1 {
+    font-size: 1.4rem;
+  }
+  .history-page .workspace-heading a {
+    display: inline-block;
+    margin-top: 16px;
+  }
+  .history-page button {
+    padding: 10px 12px;
+  }
+  .history-extremes {
+    grid-template-columns: 1fr;
+  }
+}
+.daily-map {
+  height: 460px;
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.daily-map .map-shell {
+  height: 100%;
+  min-height: 0;
+}
+@media (max-width: 700px) {
+  .daily-map {
+    height: 360px;
+  }
+}

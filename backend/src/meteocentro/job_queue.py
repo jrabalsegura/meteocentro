@@ -235,7 +235,7 @@ class Queue:
                 raise IngestionError("provider_cooldown", retry_at=state.blocked_until)
             day = now.replace(hour=0, minute=0, second=0, microsecond=0)
             if state.day_start < day:
-                state.day_start, state.day_calls = day, 0
+                state.day_start, state.day_calls, state.history_calls = day, 0, 0
             recent = [
                 datetime.fromisoformat(t)
                 for t in state.recent_calls
@@ -244,13 +244,20 @@ class Queue:
             budget = self.setting("daily_http_budget")
             if claim.kind != "current":
                 budget = max(0, budget - self.setting("current_reserve"))
-            if state.day_calls >= budget:
+            if (
+                claim.kind == "history"
+                and state.history_calls >= self.settings.history_daily_http_budget
+            ):
+                error = IngestionError("history_budget", retry_at=day + timedelta(days=1))
+            elif state.day_calls >= budget:
                 error = IngestionError("daily_budget", retry_at=day + timedelta(days=1))
             elif len(recent) >= self.setting("minute_http_budget"):
                 error = IngestionError("minute_budget", retry_at=recent[0] + timedelta(minutes=1))
             else:
                 recent.append(now)
                 state.day_calls += 1
+                if claim.kind == "history":
+                    state.history_calls += 1
             state.recent_calls = [t.isoformat() for t in recent]
         if error:
             raise error
@@ -274,7 +281,11 @@ class Queue:
                     state.last_new_data_at = now
             run = db.get(IngestionRun, claim.run_id)
             run.status, run.finished_at, run.result = "succeeded", now, result
-            job.status, job.attempts, job.cursor = "pending", 0, cursor
+            job.status, job.attempts, job.cursor = (
+                ("completed" if claim.kind == "history" and result.get("complete") else "pending"),
+                0,
+                cursor,
+            )
             job.next_run_at = now + timedelta(seconds=job.interval_seconds)
             job.owner_token, job.lease_until = None, None
 

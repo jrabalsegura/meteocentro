@@ -5,13 +5,14 @@ Fecha inicial: 9 de septiembre de 2026. Registrar aquí cambios de criterio para
 ## Requisitos del usuario
 
 - Inspiración en el estilo y las características meteorológicas de Suremet, especialmente mapa e históricos por estación.
+- Vista inicial solicitada el 21-9-2026: Madrid ciudad, centro `[-3.70765, 40.42437]` (longitud, latitud), zoom `10.69`, tomada del encuadre que el usuario tenía abierto. Se usa al abrir sin `view` válido; una vista explícita en la URL prevalece. Mantener esta preferencia en fases posteriores y conservar el botón «Ver las cuatro provincias» para el encuadre regional. No impone filtros de provincia ni de red.
 - Provincias de Madrid, Ávila, Segovia y Guadalajara completas.
 - Petición inicial de AEMET, Meteoclimatic y Wunderground. Actualización: el usuario no tiene clave WU y prefiere AEMET y Meteoclimatic si WU resulta caro; la revisión de coste conduce a proponer WU como ampliación aplazada.
 - Posibilidad de eliminar estaciones que el administrador considere erróneas.
 - Descubrimiento periódico de nuevas estaciones y recogida automática de observaciones.
 - Despliegue en contenedores Podman en el servidor habitual mediante SSH.
-- Se solicitaron las fases 0, 1, 2, 3 y 4; el despliegue remoto sigue sin solicitarse.
-- Las coordenadas públicas de Meteoclimatic mostradas a minutos son suficientemente precisas para situar aproximadamente una estación en el mapa; no se exige precisión a segundos. Los casos cercanos a un límite provincial siguen requiriendo revisión.
+- Se solicitaron las fases 0, 1, 2, 3, 4 y 5; el despliegue remoto sigue sin solicitarse.
+- Las coordenadas públicas de Meteoclimatic mostradas a minutos son suficientemente precisas para situar aproximadamente una estación en el mapa; no se exige precisión a segundos. El 21-9-2026 el usuario pide mostrar también las estaciones próximas a un límite provincial: la provincia se asigna según el punto publicado y puede ser aproximada; la incertidumbre de minutos deja de bloquear su publicación.
 
 ## Propuestas de trabajo
 
@@ -64,7 +65,7 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 - Un XML nacional cada 15 minutos combina observaciones y detección; la revisión diaria reutiliza el lote. Se mantiene el patrón nacional ya comprobado y el filtro de prefijos verificados, con clasificación final por polígonos. No se añade RSS. Un trabajo de catálogo separado recoge únicamente coordenadas a minutos y altitud de las fichas públicas, comprueba robots, cachea 30 días y usa cuotas comunes (300 GET/día, 20/minuto, reserva de 110 para actualidad).
 - Sin coordenadas, revisión. La entrada manual conserva evidencia y precisión; a minutos se exige que el rectángulo de incertidumbre completo quede en una provincia. No se inventan posiciones a partir de municipios.
 - Presión relativa al mar verificada en documentación primaria. Contador y extremos diarios se exponen con tipos y nombres separados, y `provider_day_timezone_unknown`: la fuente admite UTC y día civil sin identificar la opción en el XML. No se inventan medianoches, intervalos ni horas de los extremos; no se suman contadores. Los originales quedan en calidad. Esto resuelve el contrato de instantáneas reportadas, sin prometer diarios cerrados homogéneos.
-- Tres ausencias en revisiones diarias señalan el origen sin borrarlo. Candidatos a duplicado: 250 m entre redes, o 3 km con precisión a minutos/nombre coincidente; la vinculación siempre es explícita y conserva exclusiones y series por origen.
+- Tres ausencias en revisiones diarias señalan el origen sin borrarlo. Candidatos a duplicado: 250 m entre redes, o 1 km con precisión a minutos/nombre coincidente (umbral inicial de 3 km reducido por petición del usuario el 21-9-2026); la vinculación siempre es explícita y conserva exclusiones y series por origen.
 - El alta manual acredita registro, no emisión actual. La API muestra estados de proveedor; una desactivación oculta esa red y conserva el archivo. Una pausa técnica permite seguir consultando el archivo autorizado.
 
 ## Aclaración y configuración AEMET — 16 de septiembre de 2026
@@ -80,3 +81,11 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 - Municipios solo cuando consten en metadatos; también se busca texto en el nombre. No se incorpora geocodificación ni se inventan localidades. No hay migración de esquema.
 - La lluvia diaria y extremos Meteoclimatic de horario desconocido siguen separados como reportados en ficha. Racha del intervalo e intensidad sin datos no se simulan. Fase 5 completará diarios, gráficos e históricos.
 - Pruebas de interfaz offline y chequeo cartográfico real separado; población sintética aislada, no publicada. Sin despliegue ni activación de servicios permanentes. Detalles en `USO_Y_VALIDACION_FASE_4.md`.
+
+## Decisiones menores de fase 5 — 19 de septiembre de 2026
+
+- Series por origen y canal semántico; reducción horaria/diaria con extremos conservados. Versión `local-v1`, medias temporales limitadas a una cadencia, umbral inicial de comparación 90 %, corte horario común para el día provisional y nulos visibles. Reglas y límites en [HISTORICOS_FASE_5.md](HISTORICOS_FASE_5.md).
+- AEMET diario independiente de observaciones: lluvia 07–07 UTC; las otras métricas conservan la fecha publicada con límites diarios no acreditados. No se presupone cobertura temporal ni se fabrican horas de extremos. Meteoclimatic diario remoto y CSV de derivados siguen pendientes del permiso/acceso concreto; WU continúa aplazado.
+- Piloto de 30 días para un origen, máximo de 20 GET históricos/día por defecto y menor prioridad que actualidad. Las solicitudes solapadas comparten ventanas ya encoladas; reapertura explícita para revisar correcciones. No hay importaciones masivas ni panel administrativo nuevo.
+- Se mantiene el diseño de archivo prolongado: particionado mensual real con PK/FKs temporales, tres meses futuros y partición de reserva. Migración bajo ventana de mantenimiento. Retención solo simulada, sin mecanismo de purga habilitable.
+- ECharts 6.1.0 fijado en el bloqueo de dependencias, carga diferida y renderizador SVG. El intervalo personalizado se introduce explícitamente en UTC con fin excluido; las horas se muestran en Madrid con CET/CEST. La política externa de publicación sigue en fase 7.

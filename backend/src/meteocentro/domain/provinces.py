@@ -4,7 +4,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from shapely.geometry import Point, box, shape
+from shapely.geometry import Point, shape
 
 DEFAULT_PATH = Path(
     os.environ.get(
@@ -34,25 +34,3 @@ def classify_province(longitude: float, latitude: float, polygons=None) -> str |
     polygons = polygons or load_provinces()
     matches = [code for code, polygon in polygons.items() if polygon.covers(point)]
     return min(matches) if matches else None
-
-
-def classify_minute_precision_location(
-    longitude: float, latitude: float, polygons=None
-) -> str | None:
-    """Classify a verified location shown only to whole minutes.
-
-    The site's rounding rule is unknown, so allow one full minute in each direction.
-    A result is returned only when that entire uncertainty box is inside one province.
-    """
-    if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
-        raise ValueError("coordinates outside WGS84 range")
-    minute = 1 / 60
-    possible_area = box(
-        longitude - minute,
-        latitude - minute,
-        longitude + minute,
-        latitude + minute,
-    )
-    polygons = polygons or load_provinces()
-    matches = [code for code, polygon in polygons.items() if polygon.covers(possible_area)]
-    return matches[0] if len(matches) == 1 else None

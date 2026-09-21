@@ -1,14 +1,20 @@
 import copy
+import math
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
 import pytest
 from meteocentro.aemet import Batch
-from meteocentro.catalog import link_source
+from meteocentro.catalog import (
+    link_source,
+    recheck_boundary_locations,
+    recheck_duplicate_radius,
+)
 from meteocentro.catalog_cli import register_manual
 from meteocentro.config import Settings
 from meteocentro.ingestion_errors import IngestionError, LeaseLost
@@ -21,6 +27,7 @@ from meteocentro.meteoclimatic import (
     quality,
 )
 from meteocentro.models import (
+    AuditEvent,
     DuplicateCandidate,
     Exclusion,
     IdentityExclusion,
@@ -241,7 +248,7 @@ def test_geography_all_provinces_outside_prefix_and_minute_boundary(mc, db):
         )
         assert db.get(Station, source.station_id).province_code == code
     assert manual(db, "ESMAD2800000000001A", "41.39", "2.17")["outside"] == 1
-    # Minute precision deliberately fails closed near a real polygon boundary.
+    # Accepted minute coordinates stay visible even on a real province boundary.
     from meteocentro.catalog import location
     from meteocentro.domain.provinces import load_provinces
 
@@ -252,7 +259,7 @@ def test_geography_all_provinces_outside_prefix_and_minute_boundary(mc, db):
         else poly.exterior.coords[0]
     )
     code, reason = location({"longitude": lon, "latitude": lat, "precision": "minute"})
-    assert code is None and reason == "uncertain_boundary"
+    assert code in {"05", "19", "28", "40"} and reason is None
     assert count(db, StationSource) == 4
 
 
@@ -328,6 +335,219 @@ def test_reappearing_new_id_near_excluded_source_requires_review(mc, db):
     result = manual(db, "ESMAD2800000000002B")
     assert result["potential_duplicates"] == 1 and result["pending"] == 1
     assert count(db, StationSource) == 2
+
+
+def duplicate_fixture(
+    mc,
+    db,
+    *,
+    distance=1500,
+    precision="minute",
+    same_name=False,
+    lat="40.45",
+    lon="-3.70",
+):
+    aemet = Queue(mc.engine, mc.settings)
+    aemet.schedule()
+    original = Station(
+        name="Original",
+        latitude=Decimal(lat),
+        longitude=Decimal(lon),
+        province_code="28",
+        moderation_status="active",
+    )
+    db.add(original)
+    db.flush()
+    first = StationSource(
+        station_id=original.id,
+        provider_id=provider(db, "aemet").id,
+        external_id="TEST1",
+        latitude=original.latitude,
+        longitude=original.longitude,
+        status="enabled",
+    )
+    db.add(first)
+    db.flush()
+    register_manual(
+        db,
+        provider(db),
+        ID,
+        name="Original" if same_name else "Otra estación",
+        latitude=str(float(lat) + math.degrees(distance / 6371000)),
+        longitude=lon,
+        precision=precision,
+        evidence="synthetic position",
+    )
+    db.commit()
+    second = db.scalar(select(StationSource).where(StationSource.external_id == ID))
+    return first, second
+
+
+@pytest.mark.parametrize(
+    "distance,precision,same_name,expected",
+    [
+        (999, "minute", False, 1),
+        (1001, "minute", False, 0),
+        (999, "exact", True, 1),
+        (1001, "exact", True, 0),
+        (249, "exact", False, 1),
+        (251, "exact", False, 0),
+    ],
+)
+def test_duplicate_radius_one_km_keeps_exact_position_threshold(
+    mc, db, distance, precision, same_name, expected
+):
+    _, source = duplicate_fixture(
+        mc, db, distance=distance, precision=precision, same_name=same_name
+    )
+    assert count(db, DuplicateCandidate) == expected
+    assert (source.review_reason == "potential_duplicate") == bool(expected)
+
+
+@pytest.mark.parametrize(
+    "protection",
+    [
+        None,
+        "station",
+        "source",
+        "identity",
+        "disabled",
+        "relocation",
+        "other_candidate",
+        "outside",
+    ],
+)
+def test_recheck_old_duplicate_radius_preserves_reviews_exclusions_and_is_idempotent(
+    mc, db, protection
+):
+    first, source = duplicate_fixture(mc, db)
+    station = db.get(Station, source.station_id)
+    station.moderation_status = "review"
+    source.review_reason = "potential_duplicate"
+    pair = sorted((first.id, source.id))
+    candidate = DuplicateCandidate(
+        source_id=pair[0], other_source_id=pair[1], distance_m=1500, reason="proximity"
+    )
+    db.add(candidate)
+    if protection in {"station", "source"}:
+        db.add(
+            Exclusion(
+                **{
+                    f"{protection}_id": station.id
+                    if protection == "station"
+                    else source.id
+                }
+            )
+        )
+    elif protection == "identity":
+        db.add(
+            IdentityExclusion(
+                provider_id=source.provider_id, external_id=source.external_id
+            )
+        )
+    elif protection == "disabled":
+        source.status = "unavailable"
+    elif protection == "relocation":
+        source.source_metadata = {
+            **source.source_metadata,
+            "proposed_location": {"latitude": "41"},
+        }
+    elif protection == "other_candidate":
+        other_station = Station(
+            name="Otro",
+            moderation_status="active",
+            province_code="28",
+            latitude=source.latitude,
+            longitude=source.longitude,
+        )
+        db.add(other_station)
+        db.flush()
+        other = StationSource(
+            station_id=other_station.id,
+            provider_id=first.provider_id,
+            external_id="TEST2",
+            latitude=source.latitude,
+            longitude=source.longitude,
+            status="enabled",
+        )
+        db.add(other)
+        db.flush()
+        second_pair = sorted((other.id, source.id))
+        db.add(
+            DuplicateCandidate(
+                source_id=second_pair[0],
+                other_source_id=second_pair[1],
+                distance_m=0,
+                reason="proximity",
+            )
+        )
+    elif protection == "outside":
+        source.latitude = station.latitude = Decimal("41.390000")
+        source.longitude = station.longitude = Decimal("2.170000")
+        station.province_code = None
+    db.commit()
+    result = recheck_duplicate_radius(db, "User changes radius to 1 km")
+    db.commit()
+    assert candidate.status == "outside_radius"
+    assert result["retired_pairs"] == 1
+    assert result["released"] == ([ID] if protection is None else [])
+    assert station.moderation_status == ("active" if protection is None else "review")
+    if protection == "outside":
+        assert source.review_reason == "outside"
+    audits = count(db, AuditEvent)
+    assert recheck_duplicate_radius(db, "repeat")["retired_pairs"] == 0
+    db.commit()
+    assert count(db, AuditEvent) == audits
+
+
+@pytest.mark.parametrize("exclusion", [None, "station", "source", "identity"])
+def test_boundary_recheck_shows_approximate_station_without_restoring_exclusions(
+    mc, db, exclusion
+):
+    manual(db, lat="40.700000", lon="-4.216667", precision="minute")
+    source = db.scalar(select(StationSource).where(StationSource.external_id == ID))
+    station = db.get(Station, source.station_id)
+    assert station.moderation_status == "active" and station.province_code == "40"
+    # Simulate a persisted review created by the retired uncertainty-box policy.
+    source.review_reason = "uncertain_boundary"
+    station.moderation_status = "review"
+    station.province_code = None
+    if exclusion == "identity":
+        db.add(
+            IdentityExclusion(
+                provider_id=source.provider_id, external_id=source.external_id
+            )
+        )
+    elif exclusion:
+        db.add(
+            Exclusion(
+                **{
+                    f"{exclusion}_id": station.id
+                    if exclusion == "station"
+                    else source.id
+                }
+            )
+        )
+    db.commit()
+    result = recheck_boundary_locations(db, "User accepts approximate province")
+    db.commit()
+    assert result["released"] == ([ID] if exclusion is None else [])
+    assert station.moderation_status == ("active" if exclusion is None else "review")
+    assert source.source_metadata["precision"] == "minute"
+    audits = count(db, AuditEvent)
+    assert recheck_boundary_locations(db, "repeat")["released"] == []
+    db.commit()
+    assert count(db, AuditEvent) == audits
+    assert mc_commit(mc)["inserted"] == (1 if exclusion is None else 0)
+    if exclusion is None:
+        db.expire_all()
+        assert station.province_code == "40" and source.review_reason is None
+        with client_for(db) as client:
+            result = client.get(
+                "/api/v1/map?network=meteoclimatic&metric=temperature"
+            ).json()
+        assert result["total"] == 1
+        assert result["items"][0]["sources"][0]["coordinate_precision"] == "minute"
 
 
 def test_identical_and_conflicting_feed_duplicates(mc, db):

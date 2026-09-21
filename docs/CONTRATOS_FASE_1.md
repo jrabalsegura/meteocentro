@@ -22,7 +22,7 @@ Cada métrica del contrato Python `NormalizedObservation` lleva valor canónico,
 
 Los adaptadores comparten `Capabilities` y métodos `discover`, `fetch_current`, `fetch_history`. Un método no disponible devuelve `unsupported`, distinguible de una respuesta `ok` vacía y de `pending_access` o `pending_terms`. El punto de entrada del worker es independiente de la API; en fase 1 todavía no programa trabajos.
 
-La clasificación usa polígonos completos del IGN para Madrid, Ávila, Segovia y Guadalajara. Se aplica `covers`; si un punto cae exactamente en un límite compartido, se escoge el código provincial menor para obtener un resultado determinista. Para coordenadas mostradas solo a minutos, `classify_minute_precision_location` exige que el rectángulo de incertidumbre de ±1 minuto esté contenido entero en una provincia; si no, devuelve `None` y requiere revisión. No se consulta automáticamente ninguna ficha externa.
+La clasificación usa polígonos completos del IGN para Madrid, Ávila, Segovia y Guadalajara. Se aplica `covers`; si un punto cae exactamente en un límite compartido, se escoge el código provincial menor para obtener un resultado determinista. Desde la petición del usuario del 21-9-2026, las coordenadas mostradas a minutos se clasifican por el punto publicado: su cercanía al límite no impide mostrar la estación, y la provincia puede ser aproximada. Se conserva `precision=minute`; se retira el bloqueo anterior por rectángulo de incertidumbre de ±1 minuto. Un punto fuera de las cuatro provincias o sin coordenadas sigue sin ser publicable por este criterio.
 
 ## Evolución en fase 2
 
@@ -31,3 +31,7 @@ La migración `0002_aemet_worker` añade programación, arrendamientos, reservas
 ## Evolución en fase 3
 
 La migración `0003_network_catalog` añade detección, revisión, candidatos a duplicado y exclusión por identidad previa al alta. La elegibilidad común también exige proveedor `verified` o `paused`: las redes deshabilitadas o pendientes de términos no publican su archivo. Se conserva el contrato de todas las rutas de estaciones y se añade `GET /api/v1/providers` con código/nombre/estado, limitación técnica y última consulta, sin claves ni referencias privadas de autorización. El worker comparte programación y presupuestos entre procesos, aislados por proveedor. El nuevo contrato y los campos Meteoclimatic aún sin semántica verificada se detallan en [OPERACION_FASE_3.md](OPERACION_FASE_3.md).
+
+## Evolución en fase 5
+
+`0004_history` particiona observaciones por mes; su PK pasa a `(id, observed_at)` y las FKs de revisiones/últimos valores incorporan ese instante. La unicidad semántica con nulos no cambia. Se añaden canales, procedencia y revisiones diarias, marcas transaccionales de regeneración y presupuesto de importación. `interval_maximum` expresa una racha de intervalo cuando un producto la aporte; no se inventa ese sensor en los proveedores existentes. Las rutas anteriores se conservan. Series, diarios, efemérides, CSV, convenciones temporales y operación se detallan en [el contrato de históricos](HISTORICOS_FASE_5.md).

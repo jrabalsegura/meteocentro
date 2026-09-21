@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
 from meteocentro.domain.observations import NormalizedObservation
@@ -26,6 +26,7 @@ class Capabilities:
     discover: bool = False
     current: bool = False
     history: bool = False
+    daily_history: bool = False
 
 
 class ProviderAdapter(ABC):
@@ -38,6 +39,11 @@ class ProviderAdapter(ABC):
 
     def fetch_current(self) -> ProviderResult[list[NormalizedObservation]]:
         return ProviderResult(status=ResultStatus.UNSUPPORTED, reason="current not supported")
+
+    def fetch_daily_history(
+        self, external_id: str, start: date, end: date
+    ) -> ProviderResult[list[dict]]:
+        return ProviderResult(status=ResultStatus.UNSUPPORTED, reason="daily history not supported")
 
     def fetch_history(
         self, external_id: str, start: datetime, end: datetime

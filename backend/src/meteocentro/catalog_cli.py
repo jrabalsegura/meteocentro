@@ -15,6 +15,8 @@ from meteocentro.catalog import (
     identity_lock,
     link_source,
     location,
+    recheck_boundary_locations,
+    recheck_duplicate_radius,
     suggest_duplicates,
     upsert_source,
     validate_identity,
@@ -119,6 +121,10 @@ def main():
     link.add_argument("--source", type=UUID, required=True)
     link.add_argument("--station", type=UUID, required=True)
     link.add_argument("--evidence", required=True)
+    for name in ("recheck-duplicates", "recheck-boundaries"):
+        recheck = sub.add_parser(name)
+        recheck.add_argument("--evidence", required=True)
+        recheck.add_argument("--apply", action="store_true", help="commit; otherwise preview only")
     args = parser.parse_args()
     engine = get_engine()
     if args.command == "add":
@@ -137,9 +143,19 @@ def main():
                     precision=args.precision,
                     evidence=args.evidence,
                 )
-            else:
+            elif args.command == "link":
                 link_source(db, args.source, args.station, args.evidence)
                 result = {"linked": True}
+            else:
+                review = (
+                    recheck_duplicate_radius
+                    if args.command == "recheck-duplicates"
+                    else recheck_boundary_locations
+                )
+                result = review(db, args.evidence)
+                result["applied"] = args.apply
+                if not args.apply:
+                    db.rollback()
         print(json.dumps(result))
         return 0
     except ValueError:

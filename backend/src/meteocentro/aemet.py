@@ -144,7 +144,7 @@ class Batch:
 
 
 class AemetAdapter(ProviderAdapter):
-    capabilities = Capabilities(discover=True, current=True)
+    capabilities = Capabilities(discover=True, current=True, daily_history=True)
 
     def __init__(
         self,
@@ -226,6 +226,19 @@ class AemetAdapter(ProviderAdapter):
         if not isinstance(records, list):
             raise IngestionError("invalid_records")
         return Batch(records, fields, digest(fields), datetime.now(UTC))
+
+    def fetch_daily_history(self, external_id, start, end):
+        from meteocentro.history_import import download_daily, normalize_daily
+
+        batch = download_daily(self, external_id, start, end)
+        return ProviderResult(
+            status=ResultStatus.OK,
+            data=[
+                summary
+                for row in batch.records
+                for summary in normalize_daily(row, batch, external_id, start, end)
+            ],
+        )
 
     def discover(self):
         return ProviderResult(status=ResultStatus.OK, data=self.download("inventory").records)

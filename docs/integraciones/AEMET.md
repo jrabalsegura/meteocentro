@@ -25,3 +25,9 @@ La instantánea actual tuvo 10.479 registros y el inventario 926. En el ámbito 
 Los hashes canónicos de `campos` usados por el normalizador fueron `56ea843b6f034efdd31a10ea4c05598cd41a9e22322434dd7fd91558cae09285` para observación y `7d3fcd3b878506991baa20cdb9906f0d8976104d8ede9618f44bc2cb1741d281` para inventario. Son referencias de metadatos, no claves. El worker guarda las definiciones y su hash en PostgreSQL, acepta ISO-8859-1 y verifica las unidades y los periodos consumidos; no guarda las URL temporales.
 
 La prueba real y el contraste de las cuatro provincias figuran en [ESTADO.md](../ESTADO.md). La política de cuotas, pausas, recuperación y comandos está en [OPERACION_FASE_2.md](../OPERACION_FASE_2.md). El acceso climatológico diario permanece verificado por fase 0, sin importador nuevo en fase 2.
+
+## Importación de fase 5 — 19-9-2026
+
+El producto diario se importa ahora por ventanas reanudables de hasta 30 días, exclusivamente a resúmenes del proveedor. El piloto real de `2462`, del 1 al 30 de agosto de 2026, recibió treinta fechas en tres GET; guardó 180 resúmenes por métrica y ninguna observación intradiaria. Los metadatos reales tienen hash `9361b3e7c94732382081bd214bed104d0c857da855fd949215a517ee27b11f63`.
+
+Se preservan `Ip`, `Acum`, nulos, cobertura desconocida y horas reportadas en UTC. Precipitación conserva el día pluviométrico 07–07 UTC. Los otros campos mantienen la fecha publicada con límites diarios sin acreditar para todas las estaciones: no se presume día civil ni se asignan fechas exactas a horas ambiguas. La presión extrema se refiere al nivel de la estación. Reglas completas, contratos y limitaciones en [HISTORICOS_FASE_5.md](../HISTORICOS_FASE_5.md). El archivo horario anterior sigue sin acceso acreditado; este piloto no demuestra años de cobertura ni disponibilidad sostenida.

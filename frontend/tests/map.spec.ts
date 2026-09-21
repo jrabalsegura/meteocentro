@@ -8,6 +8,11 @@ test("escritorio: filtros, variables, ficha, vuelta, URL, orden y ausencia", asy
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
+  // These fixtures cover the whole region; Madrid is now the default opening view.
+  await page.getByRole("button", { name: "Ver las cuatro provincias" }).click();
+  await expect
+    .poll(() => Number(new URL(page.url()).searchParams.get("view")?.split(",")[2] ?? 99))
+    .toBeLessThan(8);
   await expect(page.locator(".map-number").first()).toBeVisible();
   await expect(page.locator(".provider-notice")).toContainText(
     "Acceso pendiente",
@@ -117,6 +122,10 @@ test("2.000 sintéticas: colisiones, cambio de variable y carga útil medidos", 
   });
   const start = performance.now();
   await page.goto("/");
+  await page.getByRole("button", { name: "Ver las cuatro provincias" }).click();
+  await expect
+    .poll(() => Number(new URL(page.url()).searchParams.get("view")?.split(",")[2] ?? 99))
+    .toBeLessThan(8);
   await expect(page.locator(".map-number").first()).toBeVisible();
   await expect(page.locator(".summary-strip")).toContainText(
     "2000 registradas",

@@ -10,7 +10,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from meteocentro.aemet import folded, source_identity
-from meteocentro.domain.provinces import classify_minute_precision_location, classify_province
+from meteocentro.domain.provinces import classify_province
 from meteocentro.job_queue import db_now
 from meteocentro.models import (
     AuditEvent,
@@ -21,6 +21,8 @@ from meteocentro.models import (
     StationLocationHistory,
     StationSource,
 )
+
+DUPLICATE_RADIUS_M = 1000
 
 
 def identity_lock(db, provider_id, external_id):
@@ -49,10 +51,7 @@ def location(info):
     province = classify_province(float(lon), float(lat))
     if province is None:
         return None, "outside"
-    if info.get("precision") == "minute":
-        province = classify_minute_precision_location(float(lon), float(lat))
-        if province is None:
-            return None, "uncertain_boundary"
+    # Province is approximate for minute coordinates; that uncertainty does not hide a station.
     return province, None
 
 
@@ -138,7 +137,9 @@ def suggest_duplicates(db, source, info, counters):
         distance = distance_m(source.latitude, source.longitude, other.latitude, other.longitude)
         minute = "minute" in (info.get("precision"), other.source_metadata.get("precision"))
         name_match = folded(info["name"]) == folded(station.name)
-        if distance > (3000 if minute else 250) and not (name_match and distance <= 3000):
+        if distance > (DUPLICATE_RADIUS_M if minute else 250) and not (
+            name_match and distance <= DUPLICATE_RADIUS_M
+        ):
             continue
         first, second = sorted((source.id, other.id))
         db.execute(
@@ -154,6 +155,143 @@ def suggest_duplicates(db, source, info, counters):
         source.review_reason = "potential_duplicate"
         db.get(Station, source.station_id).moderation_status = "review"
         counters["potential_duplicates"] += 1
+
+
+def recheck_duplicate_radius(db, evidence):
+    """Explicit local reconciliation; retain candidate history and all exclusions."""
+    if not evidence.strip():
+        raise ValueError("review_evidence_required")
+    db.execute(text("SELECT pg_advisory_xact_lock(746303001)"))
+    candidates = db.scalars(
+        select(DuplicateCandidate).where(
+            DuplicateCandidate.status == "pending",
+            DuplicateCandidate.reason.in_(["proximity", "proximity_and_name"]),
+        )
+    ).all()
+    affected = set()
+    retired = 0
+    for candidate in candidates:
+        first = db.get(StationSource, candidate.source_id)
+        second = db.get(StationSource, candidate.other_source_id)
+        coordinates = (first.latitude, first.longitude, second.latitude, second.longitude)
+        if None in coordinates or first.station_id == second.station_id:
+            continue
+        distance = distance_m(*coordinates)
+        if distance <= DUPLICATE_RADIUS_M:
+            continue
+        candidate.status = "outside_radius"
+        affected.update((first.id, second.id))
+        retired += 1
+        db.add(
+            AuditEvent(
+                action="duplicate_radius_recheck",
+                target_type="duplicate_candidate",
+                target_id=candidate.id,
+                details={
+                    "evidence": evidence,
+                    "radius_m": DUPLICATE_RADIUS_M,
+                    "distance_m": round(distance, 2),
+                    "previous_status": "pending",
+                },
+            )
+        )
+    db.flush()
+    return {
+        "radius_m": DUPLICATE_RADIUS_M,
+        "retired_pairs": retired,
+        **_release_catalog_reviews(
+            db,
+            affected,
+            evidence,
+            "potential_duplicate",
+            "duplicate_radius_source_review",
+            {"radius_m": DUPLICATE_RADIUS_M},
+        ),
+    }
+
+
+def recheck_boundary_locations(db, evidence):
+    """Apply the explicitly accepted point-based province policy to old reviews."""
+    if not evidence.strip():
+        raise ValueError("review_evidence_required")
+    db.execute(text("SELECT pg_advisory_xact_lock(746303001)"))
+    sources = db.scalars(
+        select(StationSource.id).where(StationSource.review_reason == "uncertain_boundary")
+    ).all()
+    return _release_catalog_reviews(
+        db,
+        sources,
+        evidence,
+        "uncertain_boundary",
+        "boundary_location_review",
+        {"location_policy": "reported_point"},
+    )
+
+
+def _release_catalog_reviews(db, affected, evidence, previous_reason, action, details):
+    released, retained = [], []
+    for source_id in sorted(affected):
+        source = db.get(StationSource, source_id)
+        if source.review_reason != previous_reason:
+            continue
+        identity_lock(db, source.provider_id, source.external_id)
+        station = db.scalar(
+            select(Station).where(Station.id == source.station_id).with_for_update()
+        )
+        unresolved = db.scalar(
+            select(DuplicateCandidate.id)
+            .where(
+                or_(
+                    DuplicateCandidate.source_id == source.id,
+                    DuplicateCandidate.other_source_id == source.id,
+                ),
+                DuplicateCandidate.status != "outside_radius",
+            )
+            .limit(1)
+        )
+        siblings = db.scalars(
+            select(StationSource.id).where(StationSource.station_id == station.id)
+        ).all()
+        meta = source.source_metadata
+        if (
+            unresolved
+            or excluded(db, source)
+            or source.status != "enabled"
+            or station.moderation_status != "review"
+            or len(siblings) != 1
+            or meta.get("proposed_location")
+            or not (meta.get("location_evidence") and meta.get("verified_at"))
+        ):
+            retained.append(source.external_id)
+            continue
+        province, reason = location(
+            {
+                "latitude": source.latitude,
+                "longitude": source.longitude,
+                "precision": meta.get("precision"),
+            }
+        )
+        source.review_reason = reason
+        station.province_code = province
+        station.moderation_status = "review" if reason else "active"
+        (retained if reason else released).append(source.external_id)
+        db.add(
+            AuditEvent(
+                action=action,
+                target_type="source",
+                target_id=source.id,
+                details={
+                    "evidence": evidence,
+                    **details,
+                    "previous_reason": previous_reason,
+                    "reason": reason,
+                },
+            )
+        )
+    return {
+        "released": released,
+        "retained": retained,
+    }
 
 
 def upsert_source(db, provider, info, counters, *, capability="current", now=None):

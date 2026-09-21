@@ -70,3 +70,7 @@ La implementación de fase 3 y sus comandos están en [OPERACION_FASE_3.md](docs
 - Las claves se configuran fuera de Git y del navegador.
 
 El destino previsto es el servidor habitual mediante `ssh remote`, con Podman y Quadlet/systemd. Este plan no ha cambiado la configuración de ese servidor.
+
+## Operación preparada (fase 7)
+
+[Guía paso a paso de despliegue y operación](docs/OPERACION.md): imágenes inmutables, Podman/Quadlet rootless o rootful, Nginx existente, CI y backups/restauración. No se ha desplegado. La instalación privada conserva AEMET y Meteoclimatic activos; la configuración local actual no cambia. Consultar [resultados y límites](docs/ESTADO.md).

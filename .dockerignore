@@ -10,5 +10,14 @@ logs
 **/__pycache__
 **/.pytest_cache
 **/.ruff_cache
-config/provinces.geojson
 config/provinces.provenance.json
+**/dist
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+deploy/env/*.env
+**/.env*
+**/*.env
+*.dump
+*.pem
+*.key

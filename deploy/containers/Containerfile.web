@@ -1,0 +1,16 @@
+FROM docker.io/library/node:24.21.0-alpine@sha256:be80f76cf40ec8e42b9bec49f60a55e0660f30af58d3e5a25530785b30ea67e2 AS build
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY frontend/ ./
+COPY config/provinces.geojson /app/config/provinces.geojson
+RUN npm run build
+
+FROM docker.io/library/nginx:1.30.0-alpine@sha256:0272e4604ed93c1792f03695a033a6e8546840f86e0de20a884bb17d2c924883
+COPY deploy/nginx/container.conf /etc/nginx/nginx.conf
+COPY --chmod=755 deploy/containers/web-entrypoint.sh /usr/local/bin/web-entrypoint
+COPY --from=build /app/frontend/dist /usr/share/nginx/html
+USER 101:101
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/web-entrypoint"]
+CMD ["-g", "daemon off;"]

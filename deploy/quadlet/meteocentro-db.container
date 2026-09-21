@@ -1,0 +1,30 @@
+[Unit]
+Description=Meteocentro PostgreSQL
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+ContainerName=meteocentro-db
+Image=@DB_IMAGE@
+Pull=never
+Network=meteocentro.network
+EnvironmentFile=@CONFIG_DIR@/db.env
+Volume=meteocentro-db.volume:/var/lib/postgresql/data
+HealthCmd=pg_isready -U meteocentro -d meteocentro
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=60s
+HealthOnFailure=kill
+LogDriver=k8s-file
+PodmanArgs=--log-opt=max-size=20mb --memory=1g --stop-timeout=60
+PidsLimit=256
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=90
+
+[Install]
+WantedBy=@TARGET@

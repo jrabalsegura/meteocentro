@@ -335,6 +335,12 @@ class IngestionRun(Base):
     owner_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
 
 
+class WorkerHeartbeat(Base):
+    __tablename__ = "worker_heartbeat"
+    name: Mapped[str] = mapped_column(String(32), primary_key=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProviderRuntime(Base):
     """Shared, durable budget. Every HTTP attempt is reserved before sending."""
 

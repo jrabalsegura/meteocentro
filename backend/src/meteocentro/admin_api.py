@@ -403,8 +403,11 @@ def distinct(candidate_id: UUID, body: Evidence, db: Db, user: Admin):
 
 @router.get("/providers")
 def providers(db: Db):
+    from meteocentro.operations import snapshot
+
     now = db_now(db)
     return {
+        "operations": snapshot(db),
         "items": [
             {
                 "code": p.code,
@@ -435,8 +438,15 @@ def providers(db: Db):
                 .where(Provider.code.in_(["aemet", "meteoclimatic"]))
                 .order_by(Provider.code)
             )
-        ]
+        ],
     }
+
+
+@router.get("/operations")
+def operations(db: Db):
+    from meteocentro.operations import snapshot
+
+    return snapshot(db)
 
 
 def job_item(db, job):

@@ -1,0 +1,38 @@
+[Unit]
+Description=Meteocentro API
+Wants=meteocentro-db.service
+After=meteocentro-db.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+ContainerName=meteocentro-api
+Image=@BACKEND_IMAGE@
+Pull=never
+Network=meteocentro.network
+EnvironmentFile=@CONFIG_DIR@/meteocentro.env
+EnvironmentFile=@CONFIG_DIR@/database.env
+Exec=python -m meteocentro.start api
+User=10001:10001
+ReadOnly=true
+Tmpfs=/tmp:rw,size=32m,mode=1777
+DropCapability=all
+NoNewPrivileges=true
+HealthCmd=python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=90s
+HealthOnFailure=kill
+LogDriver=k8s-file
+PodmanArgs=--log-opt=max-size=20mb --memory=512m --stop-timeout=30
+PidsLimit=128
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=420
+TimeoutStopSec=60
+
+[Install]
+WantedBy=@TARGET@

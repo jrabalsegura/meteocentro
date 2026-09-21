@@ -21,7 +21,7 @@
 
 ## Cierre local de fase 5 y vista inicial de Madrid — 21 de septiembre de 2026
 
-**Entrega:** fase 5 completada para el alcance documentado, en la rama `codex/fase-5-historicos`, preparada para pull request contra `main`. Incluye los ajustes solicitados durante la revisión local: montaje del GeoJSON en Compose, radio ampliado de duplicados de 1 km, aceptación de provincia aproximada y vista inicial de Madrid.
+**Entrega:** fase 5 completada para el alcance documentado, en la rama `codex/fase-5-historicos`, mediante la [PR #5 — Fase 5: históricos, resúmenes e importación AEMET reanudable](https://github.com/jrabalsegura/meteocentro/pull/5), abierta contra `main`. Incluye los ajustes solicitados durante la revisión local: montaje del GeoJSON en Compose, radio ampliado de duplicados de 1 km, aceptación de provincia aproximada y vista inicial de Madrid.
 
 **Preferencia persistente de interfaz:** sin `view` válido, el mapa abre en longitud `-3.70765`, latitud `40.42437`, zoom `10.69`, coincidente con la vista elegida por el usuario. Los enlaces con vista explícita prevalecen; «Ver las cuatro provincias» conserva el encuadre regional. No se aplican filtros de provincia/red por ese encuadre. Queda recogido en `AGENTS.md`, resumen global, decisiones, especificación de fase 4 y guía de uso para mantenerlo en las fases siguientes.
 

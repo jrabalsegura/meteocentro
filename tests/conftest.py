@@ -24,6 +24,9 @@ def engine():
         "refusing to alter a non-test database"
     )
     os.environ["DATABASE_URL"] = url
+    # Existing public contracts are tested explicitly in public mode.
+    # Phase 6 separately covers the default private mode on every route.
+    os.environ["PRIVATE_READ"] = "false"
     get_settings.cache_clear()
     get_engine.cache_clear()
     config = Config(str(ROOT / "backend/alembic.ini"))

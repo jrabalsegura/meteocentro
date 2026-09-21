@@ -11,7 +11,9 @@ test("escritorio: filtros, variables, ficha, vuelta, URL, orden y ausencia", asy
   // These fixtures cover the whole region; Madrid is now the default opening view.
   await page.getByRole("button", { name: "Ver las cuatro provincias" }).click();
   await expect
-    .poll(() => Number(new URL(page.url()).searchParams.get("view")?.split(",")[2] ?? 99))
+    .poll(() =>
+      Number(new URL(page.url()).searchParams.get("view")?.split(",")[2] ?? 99),
+    )
     .toBeLessThan(8);
   await expect(page.locator(".map-number").first()).toBeVisible();
   await expect(page.locator(".provider-notice")).toContainText(
@@ -124,7 +126,9 @@ test("2.000 sintéticas: colisiones, cambio de variable y carga útil medidos", 
   await page.goto("/");
   await page.getByRole("button", { name: "Ver las cuatro provincias" }).click();
   await expect
-    .poll(() => Number(new URL(page.url()).searchParams.get("view")?.split(",")[2] ?? 99))
+    .poll(() =>
+      Number(new URL(page.url()).searchParams.get("view")?.split(",")[2] ?? 99),
+    )
     .toBeLessThan(8);
   await expect(page.locator(".map-number").first()).toBeVisible();
   await expect(page.locator(".summary-strip")).toContainText(
@@ -186,7 +190,7 @@ test("pausa en pestaña oculta y recuperación al volver sin consultas por marca
   await page.clock.runFor(1000);
   await expect(page.locator("tbody tr")).toHaveCount(32);
   const before = state.requests.length;
-  expect(before).toBe(2);
+  expect(before).toBe(3); // Session plus the two batched weather reads.
   await page.evaluate(() =>
     Object.defineProperty(document, "hidden", {
       configurable: true,
@@ -203,7 +207,7 @@ test("pausa en pestaña oculta y recuperación al volver sin consultas por marca
     document.dispatchEvent(new Event("visibilitychange"));
   });
   await page.clock.runFor(1000);
-  await expect.poll(() => state.requests.length).toBe(before + 2);
+  await expect.poll(() => state.requests.length).toBe(before + 3);
 });
 
 test("origen no disponible: alternativa explícita y unidad de la ficha", async ({
@@ -236,6 +240,6 @@ test("el refresco conserva el foco de la ficha y sus controles", async ({
   await page.evaluate(() =>
     document.dispatchEvent(new Event("visibilitychange")),
   );
-  await expect.poll(() => state.requests.length).toBe(before + 3);
+  await expect.poll(() => state.requests.length).toBe(before + 4);
   await expect(source).toBeFocused();
 });

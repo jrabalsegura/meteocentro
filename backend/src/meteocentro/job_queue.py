@@ -103,6 +103,11 @@ class Queue:
                 if self.access_status != "verified"
                 else ("paused" if state.pause_reason else "verified")
             )
+            if self.provider_code == "aemet":
+                provider.capabilities = {
+                    **provider.capabilities,
+                    "credential_configured": bool(self.settings.aemet_api_key),
+                }
             if self.provider_code == "meteoclimatic":
                 provider.capabilities = {
                     **provider.capabilities,
@@ -282,7 +287,11 @@ class Queue:
             run = db.get(IngestionRun, claim.run_id)
             run.status, run.finished_at, run.result = "succeeded", now, result
             job.status, job.attempts, job.cursor = (
-                ("completed" if claim.kind == "history" and result.get("complete") else "pending"),
+                (
+                    "completed"
+                    if claim.kind in {"history", "verify"} and result.get("complete")
+                    else "pending"
+                ),
                 0,
                 cursor,
             )

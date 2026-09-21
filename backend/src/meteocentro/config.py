@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,7 +9,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
     database_url: str = Field(min_length=20, pattern=r"^postgresql\+psycopg://")
-    environment: str = "development"
+    environment: Literal["development", "test", "production"] = "development"
+    private_read: bool = True
+    app_origin: str = "http://localhost:5173"
+    session_hours: int = Field(default=12, ge=1, le=48)
     aemet_enabled: bool = True
     aemet_api_key: SecretStr | None = None
     aemet_poll_seconds: int = Field(default=900, ge=900)
@@ -31,6 +35,20 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def quota_reserve(self):
+        from urllib.parse import urlsplit
+
+        origin = urlsplit(self.app_origin)
+        if (
+            origin.scheme not in {"http", "https"}
+            or not origin.netloc
+            or origin.username
+            or origin.password
+            or origin.path
+            or origin.query
+            or origin.fragment
+            or (self.environment == "production" and origin.scheme != "https")
+        ):
+            raise ValueError("APP_ORIGIN must be an exact origin; HTTPS required in production")
         self.meteoclimatic_terms_reference = (
             self.meteoclimatic_terms_reference.strip() or None
             if self.meteoclimatic_terms_reference

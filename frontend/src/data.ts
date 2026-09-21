@@ -213,6 +213,8 @@ export async function api<T>(url: string, signal: AbortSignal): Promise<T> {
     signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
     cache: "no-store",
   });
+  if (response.status === 401)
+    window.dispatchEvent(new Event("session-expired"));
   if (!response.ok)
     throw new Error(
       response.status === 404

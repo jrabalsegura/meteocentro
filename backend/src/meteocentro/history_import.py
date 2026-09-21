@@ -188,6 +188,9 @@ def normalize_daily(row, batch, external_id, start, end):
 
 
 def enqueue_history(db, source_id, start, end):
+    from meteocentro.administration import admin_lock
+
+    admin_lock(db)
     if not 0 < (end - start).days <= 30 or end > datetime.now(UTC).date():
         raise ValueError("pilot_requires_1_to_30_past_days")
     source = db.get(StationSource, source_id)
@@ -198,6 +201,8 @@ def enqueue_history(db, source_id, start, end):
         raise ValueError("daily_import_pending_access_or_terms")
     # Source lock serializes overlapping enqueue requests, including completed windows.
     db.execute(select(Station.id).where(Station.id == source.station_id).with_for_update())
+    if not db.scalar(eligible_source_ids().where(StationSource.id == source_id)):
+        raise ValueError("source_not_eligible")
     jobs = db.scalars(select(Job).where(Job.source_id == source_id, Job.kind == "history")).all()
     occupied = set()
     for job in jobs:

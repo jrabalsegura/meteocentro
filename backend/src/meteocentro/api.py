@@ -4,11 +4,18 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from meteocentro.admin_api import router as admin_router
+from meteocentro.admin_api import safe_error
+from meteocentro.auth import require_reader
+from meteocentro.auth import router as auth_router
 from meteocentro.config import get_settings
 from meteocentro.db import get_session
 from meteocentro.domain.eligibility import eligible_source_ids, eligible_station_ids
@@ -35,14 +42,41 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="Meteocentro API",
     version="0.1.0",
-    openapi_url="/api/v1/openapi.json",
-    docs_url="/api/v1/docs",
+    openapi_url=None,
+    docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
+    dependencies=[Depends(require_reader)],
 )
 DbSession = Annotated[Session, Depends(get_session)]
 app.include_router(map_router)
 app.include_router(history_router)
+app.include_router(auth_router)
+app.include_router(admin_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request, error):
+    # FastAPI's default includes rejected input; login passwords must never be echoed.
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": [
+                {"loc": item["loc"], "type": item["type"], "msg": "Valor no válido"}
+                for item in error.errors()
+            ]
+        },
+    )
+
+
+@app.get("/api/v1/openapi.json", include_in_schema=False)
+def openapi():
+    return app.openapi()
+
+
+@app.get("/api/v1/docs", include_in_schema=False)
+def api_docs():
+    return get_swagger_ui_html(openapi_url="/api/v1/openapi.json", title="Meteocentro API")
 
 
 @app.middleware("http")
@@ -50,6 +84,11 @@ async def public_no_store(request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/api/v1/"):
         response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Vary"] = "Cookie"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        if hasattr(request.state, "catalog_version"):
+            response.headers["X-Catalog-Version"] = str(request.state.catalog_version)
     return response
 
 
@@ -165,7 +204,7 @@ def providers(db: DbSession):
                 "code": provider.code,
                 "name": provider.name,
                 "status": provider.status,
-                "limitation": runtime.pause_reason if runtime else None,
+                "limitation": safe_error(runtime.pause_reason) if runtime else None,
                 "last_polled_at": runtime.last_polled_at if runtime else None,
                 "attribution": "Meteoclimatic y sus colaboradores"
                 if provider.code == "meteoclimatic"

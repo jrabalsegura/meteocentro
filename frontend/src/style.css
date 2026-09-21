@@ -1488,3 +1488,178 @@ footer div {
     height: 360px;
   }
 }
+
+/* Private catalogue management shares the public portal's visual language. */
+.access-page {
+  max-width: 440px;
+  margin: 8vh auto;
+  padding: 2rem;
+  background: white;
+  border: 1px solid #dae1ed;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px #24376312;
+}
+.access-page label,
+.admin-page label,
+.admin-dialog label {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+  font-weight: 600;
+}
+.access-page input,
+.admin-page input,
+.admin-page select,
+.admin-dialog textarea {
+  min-width: 0;
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid #bcc7d8;
+  border-radius: 7px;
+  background: white;
+  color: #23344f;
+  font: inherit;
+}
+.access-page button {
+  width: 100%;
+  margin-top: 0.8rem;
+}
+.admin-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #dce2ef;
+  margin-bottom: 1rem;
+}
+.admin-tabs [aria-current="page"] {
+  background: #304c87;
+  color: white;
+}
+.admin-content {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.admin-toolbar,
+.admin-actions,
+.admin-station-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.admin-toolbar label {
+  flex: 1;
+  max-width: 600px;
+}
+.admin-station {
+  padding: 1.25rem;
+  margin: 1rem 0;
+  border: 1px solid #dbe2ed;
+  border-radius: 12px;
+  background: white;
+  overflow-wrap: anywhere;
+}
+.admin-station h2,
+.admin-station h3 {
+  margin: 0.2rem 0 0.6rem;
+}
+.admin-station p {
+  line-height: 1.55;
+}
+.admin-badge {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: #edf1f9;
+  color: #34466b;
+}
+.text-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: #214c91;
+  text-align: left;
+}
+.danger {
+  color: #922c38;
+  border-color: #d6a5ae;
+}
+.admin-source {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-left: 3px solid #7191c7;
+  background: #f7f9fd;
+}
+.source-review {
+  margin-top: 1rem;
+}
+.source-review summary {
+  cursor: pointer;
+  color: #2e548a;
+  font-weight: 600;
+}
+.source-review form + form {
+  margin-top: 1.3rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dbe2ed;
+}
+.admin-form-grid,
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.admin-dialog {
+  max-width: 560px;
+  width: calc(100% - 2rem);
+  border: 1px solid #c7d3e5;
+  border-radius: 14px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 70px #14274355;
+}
+.admin-dialog::backdrop {
+  background: #12243b88;
+}
+.admin-dialog p {
+  line-height: 1.6;
+}
+.admin-notice,
+.admin-error {
+  padding: 1rem;
+  border-radius: 8px;
+  background: #e7f3ed;
+  color: #1c5c43;
+}
+.admin-error {
+  background: #f9e8e9;
+  color: #8e2737;
+}
+.admin-page .table-scroll {
+  max-height: 460px;
+  overflow: auto;
+}
+@media (max-width: 700px) {
+  .admin-page {
+    padding: 1rem;
+  }
+  .admin-grid,
+  .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .access-page {
+    margin: 2rem 1rem;
+  }
+  .admin-dialog {
+    padding: 1rem;
+  }
+}

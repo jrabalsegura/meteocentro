@@ -381,6 +381,19 @@ class AdminSession(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class LoginThrottle(Base):
+    __tablename__ = "login_throttles"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer)
+
+
+class CatalogVersion(Base):
+    __tablename__ = "catalog_version"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class AggregateDirtyDay(Base):
     __tablename__ = "aggregate_dirty_days"
     source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("station_sources.id"), primary_key=True)

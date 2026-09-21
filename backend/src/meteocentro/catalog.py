@@ -142,7 +142,7 @@ def suggest_duplicates(db, source, info, counters):
         ):
             continue
         first, second = sorted((source.id, other.id))
-        db.execute(
+        result = db.execute(
             insert(DuplicateCandidate)
             .values(
                 source_id=first,
@@ -151,7 +151,17 @@ def suggest_duplicates(db, source, info, counters):
                 reason="proximity_and_name" if name_match else "proximity",
             )
             .on_conflict_do_nothing(constraint="uq_duplicate_pair")
+            .returning(DuplicateCandidate.id)
         )
+        if result.scalar_one_or_none() is None:
+            reviewed = db.scalar(
+                select(DuplicateCandidate.status).where(
+                    DuplicateCandidate.source_id == first,
+                    DuplicateCandidate.other_source_id == second,
+                )
+            )
+            if reviewed != "pending":
+                continue
         source.review_reason = "potential_duplicate"
         db.get(Station, source.station_id).moderation_status = "review"
         counters["potential_duplicates"] += 1
@@ -441,10 +451,13 @@ def upsert_source(db, provider, info, counters, *, capability="current", now=Non
     return source
 
 
-def link_source(db, source_id, station_id, evidence):
+def link_source(db, source_id, station_id, evidence, actor_id=None):
     """Explicit, evidenced linking; all readings retain their original source identity."""
     if not evidence.strip():
         raise ValueError("link_evidence_required")
+    # CLI linking shares the administrative lock: a source cannot join a station
+    # between the exclusion service's job selection and its station lock.
+    db.execute(text("SELECT pg_advisory_xact_lock(746306001)"))
     db.execute(text("SELECT pg_advisory_xact_lock(746303001)"))
     source = db.get(StationSource, source_id)
     if source is None or db.get(Station, station_id) is None:
@@ -464,11 +477,18 @@ def link_source(db, source_id, station_id, evidence):
     if (excluded(db, source) or old.moderation_status == "excluded") and not db.scalar(
         select(Exclusion.id).where(Exclusion.source_id == source.id, Exclusion.revoked_at.is_(None))
     ):
-        db.add(Exclusion(source_id=source.id, reason="Inherited on explicit source linking"))
+        db.add(
+            Exclusion(
+                source_id=source.id,
+                actor_id=actor_id,
+                reason="Inherited on explicit source linking",
+            )
+        )
         db.flush()
     source.station_id = station_id
     db.add(
         AuditEvent(
+            actor_id=actor_id,
             action="link_source",
             target_type="source",
             target_id=source.id,

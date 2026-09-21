@@ -45,14 +45,18 @@ No permitir introducir URLs arbitrarias que el servidor vaya a descargar. Usar p
 
 ## Comprobación de salida
 
-- [ ] Un visitante no puede listar datos privados ni realizar ninguna mutación administrativa.
-- [ ] Una estación excluida desaparece de mapa, lista, ficha directa, buscador, rankings, gráficos y CSV.
-- [ ] Tras descubrirla otra vez y reiniciar los contenedores sigue excluida.
-- [ ] Una descarga ya iniciada no vuelve a publicar observaciones de esa estación.
-- [ ] Restaurar requiere una acción explícita y deja un registro de auditoría.
-- [ ] Excluir una estación vinculada cubre todas sus redes; pausar una sola red tiene el efecto indicado.
-- [ ] Una exportación o caché generada antes de la exclusión no permite acceder a datos excluidos por una nueva petición pública.
-- [ ] Los intentos de login, la sesión caducada y las defensas de escritura se verifican.
+- [x] Un visitante no puede listar datos privados ni realizar ninguna mutación administrativa.
+- [x] Una estación excluida desaparece de mapa, lista, ficha directa, buscador, rankings, gráficos y CSV.
+- [ ] Tras descubrirla otra vez y reiniciar los contenedores sigue excluida. **Persistencia y redescubrimiento comprobados con reinicio real de PostgreSQL y worker nuevo; el ensayo específico de contenedores Podman/Quadlet queda en fase 7.**
+- [x] Una descarga ya iniciada no vuelve a publicar observaciones de esa estación.
+- [x] Restaurar requiere una acción explícita y deja un registro de auditoría.
+- [x] Excluir una estación vinculada cubre todas sus redes; pausar una sola red tiene el efecto indicado.
+- [x] Una exportación o caché generada antes de la exclusión no permite acceder a datos excluidos por una nueva petición pública.
+- [x] Los intentos de login, la sesión caducada y las defensas de escritura se verifican.
+
+## Resultado local — 21 de septiembre de 2026
+
+Implementación y pruebas documentadas en [ADMINISTRACION_FASE_6.md](../ADMINISTRACION_FASE_6.md) y [ESTADO.md](../ESTADO.md). 176 pruebas backend, catorce recorridos de interfaz con fixtures y uno separado con navegador, API y PostgreSQL reales. Sin integración externa nueva, despliegue ni aplicación de la migración a la base en uso. El reinicio de contenedores permanece explícitamente pendiente de la fase operativa.
 
 ## Prompt para Codex
 

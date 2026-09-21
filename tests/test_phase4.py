@@ -279,7 +279,8 @@ def test_no_n_plus_one_and_future_or_invalid_not_recent(engine, catalog):
         result = client.get("/api/v1/map").json()
     finally:
         event.remove(engine, "before_cursor_execute", record)
-    assert len(statements) == 1
+    # One catalogue-version read plus one batched projection, independent of population.
+    assert len(statements) == 2
     assert result["extremes"]["eligible"] == 10
     assert result["counts"]["unknown"] == 2
 

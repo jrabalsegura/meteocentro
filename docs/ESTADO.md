@@ -21,7 +21,7 @@
 
 ## Entrega de fase 7 en GitHub — 21 de septiembre de 2026
 
-El usuario da por revisada la entrega local y solicita la pull request. Se prepara la rama `codex/fase-7-podman-operacion` desde `main`, que ya incluye la fase 6 mediante la PR #6. Incluye la infraestructura, la guía paso a paso y las correcciones de las dos pruebas intermitentes descritas debajo. La validación local se mantiene en 184 pruebas correctas y ensayo de restauración aislada ejecutado; el resultado de GitHub Actions se consulta por separado en la PR. El push ejecuta comprobaciones y construcción, sin publicación GHCR ni despliegue automático. Continúan pendientes la instalación y la validación del servidor real.
+El usuario da por revisada la entrega local y solicita la pull request. Abierta la [PR #7 — Fase 7: Podman, operación y despliegue reproducible](https://github.com/jrabalsegura/meteocentro/pull/7), desde `codex/fase-7-podman-operacion` contra `main`, que ya incluye la fase 6 mediante la PR #6. Incluye la infraestructura, la guía paso a paso y las correcciones de las dos pruebas intermitentes descritas debajo. La validación local se mantiene en 184 pruebas correctas y ensayo de restauración aislada ejecutado. La primera ejecución de GitHub Actions detectó alias redundantes y formato de las importaciones de fixtures de fase 7; se corrigen aplicando los mismos comandos de Ruff que usa CI. El resultado actualizado de GitHub Actions se consulta en la PR. El push ejecuta comprobaciones y construcción, sin publicación GHCR ni despliegue automático. Continúan pendientes la instalación y la validación del servidor real.
 
 ## Corrección de validación en Mac y vista previa de fase 7 — 21 de septiembre de 2026
 

@@ -5,8 +5,10 @@ from datetime import UTC, datetime, timedelta
 from meteocentro.models import Provider, ProviderRuntime, WorkerHeartbeat
 from meteocentro.operations import snapshot, touch_worker
 from sqlalchemy import update
-from test_phase6 import admin as admin  # noqa: F401
-from test_phase6 import encoded_password as encoded_password
+
+# Explicit fixture re-exports let pytest discover dependencies and avoid F811.
+from test_phase6 import admin as admin  # noqa: PLC0414
+from test_phase6 import encoded_password as encoded_password  # noqa: PLC0414
 
 
 def test_missing_worker_then_real_heartbeat(db, engine):
@@ -14,7 +16,11 @@ def test_missing_worker_then_real_heartbeat(db, engine):
     touch_worker(engine)
     db.rollback()  # fresh READ COMMITTED transaction after the separate connection
     assert snapshot(db)["worker"]["state"] == "alive"
-    db.execute(update(WorkerHeartbeat).values(seen_at=datetime.now(UTC) - timedelta(seconds=100)))
+    db.execute(
+        update(WorkerHeartbeat).values(
+            seen_at=datetime.now(UTC) - timedelta(seconds=100)
+        )
+    )
     db.commit()
     assert snapshot(db)["status"] == "degraded"
     assert snapshot(db)["worker"]["state"] == "missing"
@@ -60,7 +66,9 @@ def test_private_operational_diagnostics(db, admin):
     assert result.status_code == 200
     assert result.json()["worker"]["state"] == "missing"
     assert "no-store" in result.headers["Cache-Control"]
-    assert client.get("/api/v1/admin/providers").json()["operations"]["overdue_jobs"] == 0
+    assert (
+        client.get("/api/v1/admin/providers").json()["operations"]["overdue_jobs"] == 0
+    )
     client.cookies.clear()
     assert client.get("/api/v1/admin/operations").status_code == 401
 

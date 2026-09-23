@@ -91,7 +91,7 @@ jobs:
           python3 deploy/scripts/ops.py prepare --images runtime/ci-images.json --output runtime/ci-release --domain meteocentro.example.invalid --config-dir /home/meteocentro/.config/meteocentro
           docker run --rm --network none -e QUADLET_UNIT_DIRS=/units -v "$PWD/runtime/ci-release/quadlet:/units:ro" --entrypoint /usr/lib/systemd/system-generators/podman-system-generator quay.io/podman/stable:v4.9.3@sha256:cc3563b15b511b3e84d23dc04087cf06df5dee8146c3834c652bd217d4ace1cd --user --dryrun > runtime/quadlet.txt
           test "$(grep -c '^---meteocentro.*\.service---$' runtime/quadlet.txt)" -eq 6
-      - name: Isolated migration, containers, backup and restore
+      - name: Isolated migration, containers and data persistence
         run: python3 -u deploy/scripts/rehearse.py --images runtime/ci-images.json --output runtime/ci-rehearsal
       - name: Publish only on explicit manual request
         if: github.event_name == 'workflow_dispatch' && inputs.publish

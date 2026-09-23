@@ -63,7 +63,7 @@ Se reutilizan trabajos activos y claves de deduplicación. Las solicitudes manua
 
 Las escrituras son POST y requieren cabecera `X-CSRF-Token` y `Origin`. El contrato detallado está en OpenAPI autenticado. La migración `0005_administration` añade `login_throttles` y `catalog_version`; reutiliza usuarios, sesiones, exclusiones y auditoría existentes. Su downgrade elimina esos dos estados nuevos, por lo que no debe usarse como mecanismo para reiniciar límites en explotación.
 
-Las copias PostgreSQL deben incluir **toda la base**, especialmente `exclusions`, `identity_exclusions`, `audit_events`, `admin_users`, `admin_sessions`, `login_throttles`, `catalog_version`, catálogo y trabajos. Conservar el archivo meteorológico sin las exclusiones no constituye una restauración correcta. Tras una recuperación operativa se deben revocar las sesiones. La copia, restauración y reinicio de contenedores Podman/Quadlet se ensayarán en fase 7; no se han implantado aquí.
+El volumen PostgreSQL conserva catálogo, observaciones, exclusiones, auditoría, cuentas, sesiones y trabajos entre reinicios. La restauración de una estación desde el panel reactiva su elegibilidad y conserva el archivo; esta función sigue disponible. Las copias de seguridad de la base quedan fuera del proyecto por decisión del usuario del 23-9-2026; véase [OPERACION.md](OPERACION.md).
 
 ## Evidencia local y límites
 

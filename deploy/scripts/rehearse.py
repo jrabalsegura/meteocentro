@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Four isolated OCI containers, no provider HTTP; migration/backup/restore rehearsal."""
+"""Four isolated OCI containers, no provider HTTP; migration and persistence rehearsal."""
 
 import argparse
 import ipaddress
@@ -11,7 +11,7 @@ import time
 import uuid
 from pathlib import Path
 
-from ops import ROOT, SIGNATURE_SQL, backup, psql, read_images, restore, run, smoke, wait_db
+from ops import ROOT, SIGNATURE_SQL, psql, read_images, run, smoke, wait_db
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--images", type=Path, required=True)
@@ -154,15 +154,15 @@ try:
     # Exercise an actual old-to-new schema update containing a real exclusion.
     app_run("alembic", "upgrade", "0005_administration")
     app_run("python", "-", input_path=ROOT / "tests/seed_phase7.py")
-    backup(engine, names["db"], a.output / "before-migration")
+    before_migration = json.loads(psql(engine, names["db"], SIGNATURE_SQL))
     app_run("python", "-m", "meteocentro.start", "migrate")
     app_run("alembic", "downgrade", "0005_administration")
-    assert (
-        json.loads(psql(engine, names["db"], SIGNATURE_SQL))
-        == json.loads((a.output / "before-migration/manifest.json").read_text())["signatures"]
-    )
+    assert json.loads(psql(engine, names["db"], SIGNATURE_SQL)) == before_migration
     app_run("python", "-m", "meteocentro.start", "migrate")
     app_run("alembic", "check")
+    after_migration = json.loads(psql(engine, names["db"], SIGNATURE_SQL))
+    assert after_migration == {**before_migration, "revision": "0006_operations"}
+    report["migration_integrity"] = True
     report["migration"] = "0005_administration -> 0006_operations, with synthetic records"
     start_role("web")
     url = "http://127.0.0.1:" + port(names["web"], 8080)
@@ -247,6 +247,15 @@ try:
     )
     assert result.returncode == 1 and json.loads(result.stdout)["worker"]["state"] == "missing"
     run(engine, "start", names["worker"])
+    # These records stay unchanged while providers are disabled, unlike job/heartbeat state.
+    persistent_tables = (
+        "stations",
+        "station_sources",
+        "observations",
+        "exclusions",
+        "audit_events",
+    )
+    before_restart = json.loads(psql(engine, names["db"], SIGNATURE_SQL))
     run(engine, "restart", names["db"])
     wait_db(engine, names["db"])
     for attempt in range(60):
@@ -272,16 +281,11 @@ try:
         capture=True,
     )
     run(engine, "stop", names["worker"])
-    backup(engine, names["db"], a.output / "after-migration")
-    restore(
-        argparse.Namespace(
-            engine=engine,
-            backup=a.output / "after-migration",
-            db_image=images["db"],
-            report=a.output / "restore.json",
-        )
-    )
-    report["restore"] = json.loads((a.output / "restore.json").read_text())
+    after_restart = json.loads(psql(engine, names["db"], SIGNATURE_SQL))
+    for table in persistent_tables:
+        assert after_restart[table] == before_restart[table], f"Changed after restart: {table}"
+    assert after_restart["revision"] == after_migration["revision"]
+    report["persistence_integrity"] = True
     report["db_restart"] = True
     if a.backend_tests:
         report["backend_tests"] = "running"

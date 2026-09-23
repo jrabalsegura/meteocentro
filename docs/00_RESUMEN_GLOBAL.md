@@ -173,7 +173,7 @@ La aplicación tendrá un único administrador inicialmente, sin registro abiert
 
 El despliegue seguirá el flujo conocido de Podman, Quadlet/systemd y Nginx mediante `ssh remote`. Se propone Podman rootless, sujeto a la comprobación del host. Compose puede servir para desarrollo. Se mantendrán datos y secretos fuera del checkout y se usarán imágenes con versiones inmutables.
 
-La operación incluye estado de fuentes, retraso de datos, registro de fallos y trabajos, copias de PostgreSQL, copia externa y restauración ensayada. Un worker vivo sin observaciones nuevas debe producir un estado degradado; una API accesible no prueba que la recogida funcione.
+La operación incluye estado de fuentes, retraso de datos, registro de fallos y trabajos y persistencia de PostgreSQL en un volumen propio. Por decisión del usuario del 23-9-2026, las copias de seguridad y su restauración quedan fuera del proyecto. Un worker vivo sin observaciones nuevas debe producir un estado degradado; una API accesible no prueba que la recogida funcione.
 
 ## Entrega y criterios de éxito
 

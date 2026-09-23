@@ -37,6 +37,8 @@ Priorizar pruebas de errores con consecuencias: duplicados, lluvia, cambio de ho
 
 ## Despliegue
 
+Decisión del usuario del 23-9-2026: las copias de seguridad quedan fuera del proyecto. No implementar backups, restauración de copias, timers, retención de copias ni destinos externos. Conservar la persistencia normal de PostgreSQL y los históricos existentes.
+
 Usar Podman y Quadlet/systemd según la fase 7. No publicar, ejecutar acciones remotas ni modificar otros servicios al implementar una fase que no lo pida. Cuando se solicite desplegar, preparar y validar primero los cambios concretos. Comprobar el estado del servidor y conservar sus vhosts, certificados, volúmenes y puertos existentes.
 
 No añadir claves, bases de datos, respuestas con secretos, ficheros de entorno reales ni copias de seguridad a Git. No activar despliegues automáticos desde cada push sin que el usuario haya elegido esa política.

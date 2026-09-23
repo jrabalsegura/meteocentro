@@ -73,4 +73,4 @@ El destino previsto es el servidor habitual mediante `ssh remote`, con Podman y 
 
 ## Operación preparada (fase 7)
 
-[Guía paso a paso de despliegue y operación](docs/OPERACION.md): imágenes inmutables, Podman/Quadlet rootless o rootful, Nginx existente, CI y backups/restauración. No se ha desplegado. La instalación privada conserva AEMET y Meteoclimatic activos; la configuración local actual no cambia. Consultar [resultados y límites](docs/ESTADO.md).
+[Guía paso a paso de despliegue y operación](docs/OPERACION.md): imágenes inmutables, Podman/Quadlet rootless o rootful, Nginx existente, CI, diagnóstico y persistencia de PostgreSQL, sin copias de seguridad. No se ha desplegado. La instalación privada conserva AEMET y Meteoclimatic activos; la configuración local actual no cambia. Consultar [resultados y límites](docs/ESTADO.md).

@@ -5,7 +5,6 @@ import argparse
 import contextlib
 import datetime as dt
 import fcntl
-import hashlib
 import json
 import os
 import re
@@ -16,7 +15,6 @@ import sys
 import time
 import urllib.error
 import urllib.request
-import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,7 +35,7 @@ TABLES = (
     "jobs",
 )
 # Two order-independent numeric fingerprints per table avoid materialising a giant string.
-# The archive also has a SHA-256 checksum. These fingerprints are for restore comparison.
+# The isolated rehearsal uses these fingerprints to verify migrations and persistence.
 SIGNATURE_SQL = (
     "SELECT json_build_object("
     + ",".join(
@@ -213,14 +211,6 @@ def check_config(release):
         raise ValueError("Database credentials differ between services")
 
 
-def sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as src:
-        for block in iter(lambda: src.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def psql(engine, container, sql):
     return run(
         engine,
@@ -240,106 +230,6 @@ def psql(engine, container, sql):
         sql,
         capture=True,
     ).strip()
-
-
-def backup(engine, container, dest, release=None):
-    dest.mkdir(mode=0o700, parents=True, exist_ok=False)
-    # Hold one exported REPEATABLE READ snapshot for both pg_dump and signatures.
-    command = [
-        engine,
-        "exec",
-        "-i",
-        container,
-        "psql",
-        "-XqAt",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-U",
-        "meteocentro",
-        "-d",
-        "meteocentro",
-    ]
-    session = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-    try:
-        session.stdin.write(
-            "SET TIME ZONE 'UTC';\n"
-            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\nSELECT pg_export_snapshot();\n"
-            + SIGNATURE_SQL
-            + ";\n"
-        )
-        session.stdin.flush()
-        snapshot_id = session.stdout.readline().strip()
-        if not re.fullmatch(r"[A-Fa-f0-9-]+", snapshot_id):
-            raise ValueError("Could not export PostgreSQL snapshot")
-        signatures = json.loads(session.stdout.readline())
-        archive = dest / "database.dump"
-        with archive.open("xb") as output:
-            subprocess.run(
-                [
-                    engine,
-                    "exec",
-                    container,
-                    "pg_dump",
-                    "-U",
-                    "meteocentro",
-                    "-d",
-                    "meteocentro",
-                    "-Fc",
-                    "--no-owner",
-                    "--no-acl",
-                    f"--snapshot={snapshot_id}",
-                ],
-                stdout=output,
-                check=True,
-            )
-        archive.chmod(0o600)
-        session.stdin.write("COMMIT;\n\\q\n")
-        session.stdin.flush()
-        if session.wait(timeout=30):
-            raise ValueError("Snapshot session failed")
-        metadata = {
-            "created_at": dt.datetime.now(dt.UTC).isoformat(),
-            "sha256": sha256(archive),
-            "signatures": signatures,
-        }
-        if release:
-            shutil.copytree(release, dest / "release")
-            conf = Path(json.loads((release / "release.json").read_text())["config_dir"])
-            # Recoverable non-secret configuration. Secrets are backed up separately.
-            write_json(
-                dest / "configuration.json",
-                {
-                    name: {
-                        k: v
-                        for k, v in env_values(conf / name).items()
-                        if not any(
-                            part in k
-                            for part in ("KEY", "PASSWORD", "TOKEN", "SECRET", "DATABASE_URL")
-                        )
-                    }
-                    for name in ("meteocentro.env", "worker.env")
-                },
-            )
-        write_json(dest / "manifest.json", metadata)
-        (dest / "COMPLETE").write_text(
-            "Backup completed; external encryption/copy is a separate step.\n"
-        )
-        return dest
-    finally:
-        if session.poll() is None:
-            session.terminate()
-            session.wait(timeout=10)
-        session.stdin.close()
-        session.stdout.close()
-
-
-def verify_backup(directory):
-    if not (directory / "COMPLETE").is_file():
-        raise ValueError("Incomplete backup")
-    metadata = json.loads((directory / "manifest.json").read_text())
-    if sha256(directory / "database.dump") != metadata["sha256"]:
-        raise ValueError("Backup checksum mismatch")
-    return metadata
 
 
 def wait_db(engine, name):
@@ -362,76 +252,6 @@ def wait_db(engine, name):
             return
         time.sleep(1)
     raise ValueError("PostgreSQL did not become ready")
-
-
-def restore(args):
-    metadata = verify_backup(args.backup)
-    image = immutable(args.db_image)
-    # No target parameter: it is impossible to address the live database here.
-    name = "meteocentro-restore-" + uuid.uuid4().hex[:12]
-    volume = name + "-data"
-    run(args.engine, "volume", "create", volume)
-    try:
-        run(
-            args.engine,
-            "run",
-            "-d",
-            "--name",
-            name,
-            "--network=none",
-            "--memory=1g",
-            "--env",
-            "POSTGRES_USER=meteocentro",
-            "--env",
-            "POSTGRES_DB=meteocentro",
-            "--env",
-            "POSTGRES_PASSWORD",
-            "--volume",
-            f"{volume}:/var/lib/postgresql/data",
-            image,
-            env={**os.environ, "POSTGRES_PASSWORD": secrets.token_hex(32)},
-        )
-        wait_db(args.engine, name)
-        with (args.backup / "database.dump").open("rb") as src:
-            subprocess.run(
-                [
-                    args.engine,
-                    "exec",
-                    "-i",
-                    name,
-                    "pg_restore",
-                    "-U",
-                    "meteocentro",
-                    "-d",
-                    "meteocentro",
-                    "--exit-on-error",
-                    "--single-transaction",
-                    "--no-owner",
-                    "--no-acl",
-                ],
-                stdin=src,
-                check=True,
-            )
-        actual = json.loads(psql(args.engine, name, SIGNATURE_SQL))
-        if actual != metadata["signatures"]:
-            raise ValueError("Restored counts/fingerprints/schema differ from the backup snapshot")
-        report = {
-            "status": "verified",
-            "container": name,
-            "volume": volume,
-            "signatures": actual,
-        }
-        if args.report:
-            write_json(args.report, report)
-        print(json.dumps(report))
-    finally:
-        # Keep the isolated volume (also on failure) for investigation/promotion.
-        subprocess.run(
-            [args.engine, "rm", "-f", name],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        print(f"Isolated volume retained: {volume}", file=sys.stderr)
 
 
 def smoke(url):
@@ -528,7 +348,7 @@ def apply(args):
             and (previous / "quadlet/meteocentro-db.volume").read_text()
             != (args.release / "quadlet/meteocentro-db.volume").read_text()
         ):
-            raise ValueError("Changing the database volume requires the recovery procedure")
+            raise ValueError("Changing the database volume requires a dedicated migration")
         if not old:
             for name in ("db", "api", "worker", "web"):
                 loaded = subprocess.run(
@@ -575,17 +395,6 @@ def apply(args):
                 sock.bind(("127.0.0.1", release["port"]))
         if shutil.disk_usage(args.state).free < args.min_free_gib * 1024**3:
             raise ValueError("Insufficient free space for the selected reserve")
-        if old:
-            db_size = int(
-                psql("podman", "meteocentro-db", "SELECT pg_database_size(current_database())")
-            )
-            backup_parent = args.backups.resolve()
-            while not backup_parent.exists():
-                backup_parent = backup_parent.parent
-            if shutil.disk_usage(backup_parent).free < max(
-                db_size * 2, args.min_free_gib * 1024**3
-            ):
-                raise ValueError("Backup filesystem needs at least twice the current database size")
         for image in (release["db"], release["backend"], release["web"]):
             if "@sha256:" in image:
                 run("podman", "pull", image)
@@ -603,19 +412,13 @@ def apply(args):
         )
         try:
             if old:
-                # Quiesce all writers before the backup/migration cutover.
+                # Quiesce all writers before changing the schema.
                 systemctl(
                     release,
                     "stop",
                     "meteocentro-web",
                     "meteocentro-worker",
                     "meteocentro-api",
-                )
-                backup(
-                    "podman",
-                    "meteocentro-db",
-                    args.backups / ("preupdate-" + stamp),
-                    previous.resolve(),
                 )
             unit_dir.mkdir(parents=True, exist_ok=True)
             for path in (event / "release/quadlet").iterdir():
@@ -691,42 +494,11 @@ def apply(args):
                 event / "status.json",
                 {
                     "status": "failed",
-                    "action": "Services stopped. Preserve DB; inspect backup and schema.",
+                    "action": "Services stopped. Preserve DB; inspect migration logs and schema.",
                 },
             )
             raise
     print("Release installed locally on this host. Nginx/certificates were not changed.")
-
-
-def retain(directory, now=None):
-    now = now or dt.datetime.now(dt.UTC)
-    complete = []
-    for path in directory.iterdir():
-        if path.is_dir() and path.name.startswith("daily-") and (path / "COMPLETE").is_file():
-            created = dt.datetime.fromisoformat(
-                json.loads((path / "manifest.json").read_text())["created_at"]
-            )
-            complete.append((created, path))
-    complete.sort(reverse=True)
-    keep = {path for _, path in complete[:7]}
-    weeks = set()
-    for created, path in complete:
-        week = created.isocalendar()[:2]
-        if week not in weeks and len(weeks) < 4:
-            weeks.add(week)
-            keep.add(path)
-    # Never prune pre-update backups or incomplete/investigation directories.
-    for _, path in complete:
-        if path not in keep:
-            shutil.rmtree(path)
-
-
-def daily(args):
-    with lock(args.state):
-        current = (args.state / "current").resolve(strict=True)
-        stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
-        backup(args.engine, "meteocentro-db", args.backups / ("daily-" + stamp), current)
-        retain(args.backups)
 
 
 def main():
@@ -748,31 +520,13 @@ def main():
     p = sub.add_parser("apply")
     p.add_argument("--release", type=Path, required=True)
     p.add_argument("--state", type=Path, required=True)
-    p.add_argument("--backups", type=Path, required=True)
     p.add_argument("--min-free-gib", type=int, default=5)
     p.add_argument("--adopt-volume", help="First installation only: reviewed imported volume name")
     p.add_argument("--engine", choices=["podman"], default="podman")
     p.set_defaults(func=apply)
-    p = sub.add_parser("backup")
-    p.add_argument("--engine", choices=["podman", "docker"], default="podman")
-    p.add_argument("--container", default="meteocentro-db")
-    p.add_argument("--output", type=Path, required=True)
-    p.add_argument("--release", type=Path)
-    p.set_defaults(func=lambda a: print(backup(a.engine, a.container, a.output, a.release)))
-    p = sub.add_parser("restore-check")
-    p.add_argument("--engine", choices=["podman", "docker"], default="podman")
-    p.add_argument("--backup", type=Path, required=True)
-    p.add_argument("--db-image", default=DB_IMAGE)
-    p.add_argument("--report", type=Path)
-    p.set_defaults(func=restore)
     p = sub.add_parser("smoke")
     p.add_argument("url")
     p.set_defaults(func=lambda a: smoke(a.url))
-    p = sub.add_parser("daily-backup")
-    p.add_argument("--engine", choices=["podman", "docker"], default="podman")
-    p.add_argument("--state", type=Path, required=True)
-    p.add_argument("--backups", type=Path, required=True)
-    p.set_defaults(func=daily)
     args = parser.parse_args()
     os.umask(0o077)
     try:

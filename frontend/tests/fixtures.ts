@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { Reading, Station } from "../src/data";
+import type { Current, Reading, Station } from "../src/data";
 export const observed = "2026-09-19T08:00:00+00:00";
 export function reading(index: number, metric = "temperature"): Reading {
   return {
@@ -77,6 +77,7 @@ export async function mockApi(
     excluded: new Set<string>(),
     fail: false,
     requests: [] as string[],
+    current: {} as Partial<Current>,
   };
   if (tiles !== "real")
     await page.route("https://www.ign.es/**", (route) =>
@@ -132,6 +133,7 @@ export async function mockApi(
           readings: ["temperature", "humidity", "wind_speed", "rain"].map((m) =>
             reading(index, m),
           ),
+          ...state.current,
         },
       });
     }
@@ -141,6 +143,7 @@ export async function mockApi(
     ).filter(
       (s) =>
         !state.excluded.has(s.id) &&
+        (!url.searchParams.get("network") || s.sources.some((source) => source.provider === url.searchParams.get("network"))) &&
         (!url.searchParams.get("province") ||
           url.searchParams.get("province") === s.province_code) &&
         (!url.searchParams.get("q") ||

@@ -293,3 +293,85 @@ def test_verified_municipality_search(db, catalog):
     result = client.get("/api/v1/map?q=Alcalá").json()
     assert result["total"] == 1
     assert result["items"][0]["municipality"] == "Alcalá de Henares"
+
+
+def test_today_summary_keeps_gaps_zero_and_rain_intervals(db, catalog):
+    from meteocentro.history import civil_window
+    from meteocentro.map_api import day_summaries
+
+    client, add, providers = catalog
+    station, source, _ = add()
+    providers[0].capabilities = {"native_cadence_seconds": 3600}
+    start, _ = civil_window(datetime(2026, 3, 29, tzinfo=UTC).date())
+    now = start + timedelta(hours=6)
+
+    def sample(hour, metrics, interval=None):
+        db.add(
+            Observation(
+                source_id=source.id,
+                product="today-fixture",
+                observed_at=start + timedelta(hours=hour),
+                fetched_at=now,
+                period_start=start + timedelta(hours=interval[0]) if interval else None,
+                period_end=start + timedelta(hours=interval[1]) if interval else None,
+                period_basis="preceding_60_minutes_UTC" if interval else None,
+                metrics=metrics,
+                quality={},
+                payload_hash="1" * 64,
+                normalizer_version="today-fixture",
+            )
+        )
+
+    for hour, value in [(-1, -100), (1, 0), (2, 15), (7, 100)]:
+        sample(hour, {"temperature": {"value": value, "unit": "°C", "kind": "instant"}})
+    for interval, value in [
+        ((-0.5, 0.5), 10),
+        ((0, 1), 0),
+        ((2, 3), 4),
+        ((3, 4), 5),
+        ((3.5, 4.5), 6),
+    ]:
+        sample(
+            interval[1],
+            {"rain": {"value": value, "unit": "mm", "kind": "interval_total"}},
+            interval,
+        )
+    sample(5, {"rain_daily": {"value": 100, "unit": "mm", "kind": "daily_counter"}})
+    db.commit()
+    summaries = day_summaries(db, station.id, now)
+    temperature = next(item for item in summaries if item["metric"] == "temperature")
+    rain = next(item for item in summaries if item["metric"] == "rain")
+    assert temperature["minimum"] == 0 and temperature["maximum"] == 15
+    assert temperature["coverage"] == pytest.approx(2 / 6)
+    assert rain["total"] == 4
+    assert rain["coverage"] == pytest.approx(2 / 6)
+    assert rain["partial"] is True
+    assert "overlapping_intervals" in rain["flags"]
+    assert "cross_boundary_total" in rain["flags"]
+    assert all(item["period_start"] == start for item in summaries)
+    assert all(item["source_id"] == str(source.id) for item in summaries)
+    assert (
+        "day_summaries" in client.get(f"/api/v1/stations/{station.id}/current").json()
+    )
+    db.add(Exclusion(source_id=source.id))
+    db.commit()
+    assert day_summaries(db, station.id, now) == []
+
+
+def test_today_summary_does_not_use_yesterday_future_or_unknown_cadence(db, catalog):
+    from meteocentro.map_api import day_summaries
+
+    _, add, providers = catalog
+    station, _source, original = add(value=0)
+    now = original.observed_at + timedelta(microseconds=1)
+    assert day_summaries(db, station.id, now) == []  # No documented cadence.
+    providers[0].capabilities = {"native_cadence_seconds": 3600}
+    db.commit()
+    summaries = day_summaries(db, station.id, now)
+    assert len(summaries) == 1
+    assert summaries[0]["minimum"] == 0
+    assert all(s["metric"] != "rain" for s in summaries)  # Missing is not dry.
+    assert day_summaries(db, station.id, now + timedelta(days=2)) == []
+    assert (
+        day_summaries(db, station.id, original.observed_at - timedelta(seconds=1)) == []
+    )

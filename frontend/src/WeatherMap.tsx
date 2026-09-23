@@ -14,7 +14,6 @@ const boundaries = JSON.parse(boundariesText) as {
 import {
   color,
   freshnessLabels,
-  metricInfo,
   number,
   type Station,
 } from "./data";
@@ -322,26 +321,7 @@ export default function WeatherMap({
           <button onClick={() => changeBase(base)}>Reintentar fondo</button>
         </div>
       )}
-      <div className="map-scale" aria-label="Escala del mapa">
-        <strong>
-          {metricInfo[metric].short} · {metricInfo[metric].unit}
-        </strong>
-        <div>
-          {metricInfo[metric].scale.map((value, i) => (
-            <span key={value}>
-              <i style={{ background: metricInfo[metric].colors[i] }} />
-              {i === 0
-                ? `< ${metricInfo[metric].scale[1]}`
-                : i === 4
-                  ? `≥ ${value}`
-                  : `${value}–${metricInfo[metric].scale[i + 1]}`}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="map-note">
-        Números: observaciones · «est.»: grupo, amplía para separar
-      </div>
+
     </section>
   );
 }

@@ -40,7 +40,26 @@ export type Station = {
   freshness: string;
   fallback: boolean;
 };
-export type Current = Station & { readings: Reading[]; generated_at: string };
+export type DaySummary = {
+  metric: string;
+  unit: string;
+  source_id: string;
+  provider: string;
+  external_id: string;
+  minimum: number | null;
+  maximum: number | null;
+  total: number | null;
+  coverage: number;
+  partial: boolean;
+  period_start: string;
+  period_end: string;
+  observed_at: string;
+};
+export type Current = Station & {
+  readings: Reading[];
+  generated_at: string;
+  day_summaries?: DaySummary[];
+};
 export type Extreme = { station_id: string; name: string; reading: Reading };
 export type MapPage = {
   items: Station[];

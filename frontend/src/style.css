@@ -370,16 +370,6 @@ main {
   min-width: 48px;
   border: 2px solid #fff;
 }
-.map-note {
-  position: absolute;
-  left: 12px;
-  bottom: 30px;
-  font-size: 0.68rem;
-  background: #ffffffe8;
-  border-radius: 4px;
-  padding: 5px 8px;
-  pointer-events: none;
-}
 .map-caption {
   display: flex;
   align-items: center;
@@ -883,9 +873,6 @@ footer div {
   .has-selection .maplibregl-ctrl-top-right {
     right: 465px;
   }
-  .has-selection .map-note {
-    max-width: calc(100% - 450px);
-  }
 }
 @media (max-width: 1050px) {
   main {
@@ -1058,13 +1045,6 @@ footer div {
   .region-button span {
     display: none;
   }
-  .map-note {
-    font-size: 0.61rem;
-    left: 6px;
-    bottom: 36px;
-    max-width: 80%;
-    line-height: 1.4;
-  }
   .map-caption {
     flex-wrap: wrap;
     gap: 5px 10px;
@@ -1199,37 +1179,6 @@ footer div {
   width: 100%;
   height: 100%;
 }
-.map-scale {
-  position: absolute;
-  left: 12px;
-  bottom: 62px;
-  min-width: 240px;
-  background: #fffffff2;
-  padding: 9px 11px;
-  border: 1px solid #dce2eb;
-  border-radius: 6px;
-  pointer-events: none;
-}
-.map-scale strong {
-  font-size: 0.7rem;
-  font-weight: 650;
-  display: block;
-  margin-bottom: 7px;
-}
-.map-scale > div {
-  display: flex;
-  gap: 3px;
-}
-.map-scale span {
-  flex: 1;
-  font-size: 0.62rem;
-  color: #344257;
-}
-.map-scale i {
-  height: 4px;
-  display: block;
-  margin-bottom: 4px;
-}
 @media (max-width: 700px) {
   .variables button {
     justify-content: center;
@@ -1239,11 +1188,6 @@ footer div {
   }
   .variables button > span {
     display: none;
-  }
-  .map-scale {
-    left: 6px;
-    bottom: 84px;
-    min-width: 225px;
   }
 }
 
@@ -1662,4 +1606,34 @@ footer div {
   .admin-dialog {
     padding: 1rem;
   }
+}
+
+/* Immediate station summary, including on the compact mobile sheet. */
+.station-current {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+.station-current .popup-value { margin: 0; font-size: 2rem; white-space: nowrap; }
+.station-current h3 { font-size: .76rem; }
+.station-current small { display: block; color: var(--muted); font-size: .68rem; }
+.station-summary h3 { font-size: .8rem; margin-bottom: 8px; }
+.station-summary h3 > span { font-size: .7rem; font-weight: 400; color: var(--muted); }
+.daily-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.daily-stat { background: #f5f6fb; border-radius: 7px; padding: 9px 7px; min-width: 0; }
+.daily-stat h4 { font-size: .66rem; font-weight: 600; margin: 0 0 5px; }
+.daily-stat > strong { display: block; font-size: 1.24rem; color: #36436a; white-space: nowrap; }
+.daily-stat > strong > span { font-size: .65rem; font-weight: 500; }
+.daily-stat small { display: block; margin-top: 4px; font-size: .6rem; color: #59657b; line-height: 1.35; }
+.daily-context { font-size: .65rem; line-height: 1.4; color: var(--muted); margin: 7px 0; }
+.quick-readings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quick-readings > div { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: .72rem; }
+.quick-readings small { flex-basis: 100%; font-size: .6rem; color: var(--muted); }
+.station-summary + .source-select { margin-top: 12px; }
+.current-metadata { font-size: .76rem; margin-top: 12px; }
+@media (max-width: 700px) {
+  .station-current .popup-value { font-size: 1.8rem; }
+  .station-location { margin-top: 4px; }
 }

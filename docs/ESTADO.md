@@ -6,6 +6,20 @@
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
 
+## Mejora de mapa y resumen inmediato — 23 de septiembre de 2026
+
+**Solicitud:** retirar la escala y el texto superpuestos al mapa, mostrar mínima/máxima/precipitación al abrir una estación y mantener el listado sincronizado con los filtros. El usuario confirma que el encuadre geográfico no debe recortar la tabla.
+
+**Cambios:** eliminadas las dos superposiciones y sus estilos; se conserva la leyenda fuera del mapa y la atribución IGN. La ficha compacta y completa muestran el resumen diario sin desplegables, con humedad/viento en el resumen. Los diarios reportados conservan fuente, fecha y advertencia sobre reinicio desconocido; se rechazan fechas anteriores o futuras al resumen. AEMET usa las observaciones ya almacenadas desde medianoche de Madrid hasta la consulta, con cobertura y huecos explícitos. Se reutiliza la agregación de históricos por origen y canal, sin sumar contadores ni intervalos solapados o repartir intervalos que crucen medianoche. Nulo y cero siguen siendo distintos. El mapa y la tabla usan una sola respuesta asociada a sus filtros; se descartan respuestas canceladas y poblaciones de filtros anteriores. Se mantiene la vista inicial de Madrid.
+
+**Validación local ejecutada:** compilación TypeScript/Vite correcta; 49 pruebas de mapa/históricos en PostgreSQL 17.11 aislado correctas; 18 recorridos Playwright correctos (uno adicional de administración con API real omitido por su configuración explícita). Casos nuevos: cero/ausencia, cobertura parcial, lluvia solapada, límite diario, exclusión, origen, diario de ayer y todos los filtros con paginación/recarga. Inspección de captura a 390 px: las tres tarjetas diarias visibles al abrir, sin desbordamiento. Ruff y `git diff --check` correctos. Datos de prueba sintéticos, sin consultas a proveedores.
+
+**Despliegue solicitado:** inventario de solo lectura confirma cuatro servicios activos con Podman 4.9.3 rootless, HTTPS y puerto 8089, volumen `meteocentro-db-data`, revisión `0006_operations` y versión anterior `cd84a45`. Actualización prevista desde GitHub, manteniendo dominio, puerto, volumen, configuración privada, vhosts y certificados. No hay migraciones nuevas. CI y publicación de esta revisión pendientes de completar.
+
+**Limitaciones:** los extremos calculados representan el archivo disponible del día y la lluvia parcial solo sus intervalos válidos; no equivalen a un día completo cuando falta cobertura. Meteoclimatic sigue con día del proveedor de reinicio desconocido. Esta revisión no cambia proveedores, política de acceso ni periodicidad de recogida.
+
+**Siguiente paso:** completar CI, desplegar el commit validado y verificar HTTPS, resumen real y continuidad de datos/worker.
+
 ## Seguimiento de fases
 
 | Fase | Estado | Evidencia pendiente para cerrar |

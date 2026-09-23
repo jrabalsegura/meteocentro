@@ -6,6 +6,16 @@
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
 
+## Filtro de estaciones sin actualizar — 23 de septiembre de 2026
+
+**Solicitud y cambio:** casilla marcada por defecto para ocultar del mapa las estaciones cuyo dato de la variable seleccionada supera 3.600 s; exactamente una hora sigue visible. También se ocultan las que no tienen lectura utilizable. La tabla conserva su población y señala las filas antiguas en ámbar con «Más de 1 h sin actualizar» y, cuando procede, «Oculta en el mapa». Desmarcar conserva todos los marcadores y persiste en la URL (`hide_old=0`); los antiguos muestran borde discontinuo. El refresco de 60 s evalúa de nuevo la edad de observación, nunca la recogida. Contadores de mapa/listado separados y mensaje recuperable si todas quedan ocultas. Vista inicial de Madrid, filtros comunes, históricos y umbrales operativos por proveedor conservados.
+
+**Validación local:** compilación TypeScript/Vite correcta; suite Playwright completa con **20 recorridos correctos y uno optativo de administración real omitido**. Tras reforzar la exclusión de horas futuras y ajustar el filtro móvil, repetidos los **12 recorridos de mapa, todos correctos**. Casos de 3.600/3.601 s, cero, ausencia, hora futura, AEMET todavía reciente según su umbral, Meteoclimatic entre 45–60 min, recarga, cambio de variable, tabla persistente, desaparición y recuperación automática. Captura a 390 px inspeccionada, sin desbordamiento. Fixtures sintéticos sin llamadas a proveedores; no cambia backend, esquema ni dependencias. Node local 26.3.0; CI y la imagen conservan Node 24.21.0. Se mantienen los avisos conocidos de bundles grandes y deprecación del runtime local.
+
+**Preparación remota:** inspección SSH autorizada: cuatro unidades Meteocentro activas, DB/API/web saludables, rootless Podman 4.9.3, puerto 8089, volumen `meteocentro-db-data` y 23 GiB libres. Antes del cambio, el worker está vivo y sin trabajos atrasados; Meteoclimatic tiene datos recientes, mientras AEMET responde sin observaciones nuevas desde las 08:00 UTC. Es un estado previo del proveedor, no un fallo de esta interfaz. Se conserva el vhost HTTPS y la configuración privada existentes.
+
+**Siguiente paso:** publicar el commit, comprobar CI, construir la versión exacta desde GitHub y aplicar mediante `ops.py` en `remote`; registrar el resultado real después.
+
 ## Mejora de mapa y resumen inmediato — 23 de septiembre de 2026
 
 **Solicitud:** retirar la escala y el texto superpuestos al mapa, mostrar mínima/máxima/precipitación al abrir una estación y mantener el listado sincronizado con los filtros. El usuario confirma que el encuadre geográfico no debe recortar la tabla.

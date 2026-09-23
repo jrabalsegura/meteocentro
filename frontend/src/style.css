@@ -355,6 +355,7 @@ main {
   box-shadow: 0 2px 9px #23324816;
 }
 .map-number {
+  z-index: 1;
   font-size: 16px;
   font-weight: 750;
   line-height: 1.1;
@@ -389,6 +390,31 @@ main {
   background: #eef0fa;
   min-width: 48px;
   border: 2px solid #fff;
+}
+.map-marker-leader,
+.map-marker-leader svg {
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+.map-marker-leader {
+  z-index: 0;
+}
+.map-marker-leader svg {
+  display: block;
+}
+.map-marker-leader line {
+  stroke: #59657d;
+  stroke-width: 1.5px;
+}
+.map-marker-leader circle {
+  fill: #59657d;
+  stroke: #fff;
+  stroke-width: 1px;
+}
+.map-shell .maplibregl-popup {
+  z-index: 4;
 }
 .map-caption {
   display: flex;
@@ -843,6 +869,19 @@ td:first-child a {
   display: flex;
   flex-direction: column;
   gap: 5px;
+}
+.group-list p {
+  margin: 0 0 6px;
+}
+.group-list button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.group-list button span {
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 .notice,
 .provider-notice {

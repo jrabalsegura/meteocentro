@@ -1,6 +1,157 @@
 import { test, expect } from "@playwright/test";
 import { mockApi } from "./fixtures";
 
+for (const width of [1440, 390]) {
+  test(`estaciones coincidentes se separan con espacio libre a zoom intermedio (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    const state = await mockApi(page, 2);
+    for (let i = 0; i < 2; i++) state.mapStations.set(i, { longitude: -3.516667, latitude: 40.35 });
+    await page.goto("/?view=-3.516667,40.35,10.69");
+    await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(2);
+    await expect(page.locator(".map-marker-leader")).toHaveCount(2);
+    await expect(page.locator(".map-number.cluster")).toHaveCount(0);
+    // MapLibre can redraw between two separate boundingBox calls during load.
+    // Read both rectangles together and wait for the actual rendered geometry.
+    await expect(async () => {
+      const boxes = await page.locator(".map-number").evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().toJSON()),
+      );
+      expect(boxes).toHaveLength(2);
+      const [first, second] = boxes;
+      expect(first.width).toBeGreaterThan(0);
+      expect(second.width).toBeGreaterThan(0);
+      expect(first.x + first.width).toBeLessThan(second.x);
+      expect(first.x).toBeGreaterThan(0);
+      expect(second.x + second.width).toBeLessThan(width);
+    }).toPass({ timeout: 5000 });
+    const view = new URL(page.url()).searchParams.get("view")!.split(",").map(Number);
+    expect(view[0]).toBeCloseTo(-3.516667, 5);
+    expect(view[1]).toBeCloseTo(40.35, 5);
+    expect(view[2]).toBe(10.69);
+    await page.screenshot({ path: `test-results/coincident-${width}.png` });
+    for (let i = 0; i < 2; i++) {
+      const marker = page.getByRole("button", { name: new RegExp(`SINTÉTICA 000${i}.*Abrir resumen`) });
+      await marker.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.locator(".station-panel")).toContainText(`SINTÉTICA 000${i}`);
+      await page.getByRole("button", { name: "Cerrar ficha" }).click();
+      await expect(page.locator(".station-panel")).toHaveCount(0);
+      // Closing restores focus on the next frame; wait before choosing another marker.
+      await expect(width === 390
+        ? page.locator(".filter-panel summary")
+        : page.getByRole("searchbox", { name: "Buscar estación" })).toBeFocused();
+    }
+    await page.getByRole("button", { name: "Humedad", exact: false }).click();
+    await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /SINTÉTICA 0000.*: 0,0 %/ })).toBeVisible();
+    state.excluded.add("00000000-0000-4000-8000-000000000001");
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.locator(".map-number")).toHaveCount(1);
+    await expect(page.locator(".map-marker-leader")).toHaveCount(0);
+  });
+}
+
+test("la densidad conserva el grupo y al liberar espacio lo separa sin más zoom", async ({ page }) => {
+  const state = await mockApi(page, 6);
+  // Two coincident stations surrounded by four markers at zoom 10.
+  const degreesPerPixel = 360 / (512 * 2 ** 10);
+  [[0, 0], [0, 0], [-100, 0], [100, 0], [0, -60], [0, 60]].forEach(([x, y], i) => {
+    state.mapStations.set(i, {
+      longitude: -3.516667 + x * degreesPerPixel,
+      latitude: 40.35 + y * degreesPerPixel * Math.cos(40.35 * Math.PI / 180),
+    });
+    state.mapReadings.set(i, { freshness: "fresh" });
+  });
+  await page.goto("/?view=-3.516667,40.35,10");
+  await expect(page.locator(".map-number")).toHaveCount(5);
+  await page.getByRole("button", { name: "Ver 2 estaciones", exact: true }).click();
+  const list = page.locator(".group-list");
+  await expect(list).toContainText("comparten coordenadas publicadas");
+  await expect(list).toContainText("SYN-0");
+  await expect(list).toContainText("SYN-1");
+  await expect(list).toContainText("-5,0 °C");
+  await expect(list).toContainText("-4,0 °C");
+  await list.getByRole("button", { name: /SINTÉTICA 0001/ }).click();
+  await expect(page.locator(".station-panel")).toContainText("SINTÉTICA 0001");
+  await page.getByRole("button", { name: "Cerrar ficha" }).click();
+  await page.getByRole("button", { name: "Ver 2 estaciones", exact: true }).click();
+  state.excluded.add("00000000-0000-4000-8000-000000000002");
+  state.excluded.add("00000000-0000-4000-8000-000000000003");
+  state.excluded.add("00000000-0000-4000-8000-000000000004");
+  state.excluded.add("00000000-0000-4000-8000-000000000005");
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(list).toHaveCount(0);
+  await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(2);
+  await expect(page.locator(".map-number.cluster")).toHaveCount(0);
+  expect(Number(new URL(page.url()).searchParams.get("view")!.split(",")[2])).toBe(10);
+});
+
+test("coordenadas próximas y coincidentes permiten leer ambos valores incluso al máximo zoom", async ({ page }) => {
+  const state = await mockApi(page, 2);
+  for (const zoom of [10, 18]) {
+    state.mapStations.set(0, { longitude: -3.516667, latitude: 40.35 });
+    state.mapStations.set(1, { longitude: -3.516667 + (zoom === 10 ? 0.005 : 0), latitude: 40.35 });
+    await page.goto(`/?view=-3.516667,40.35,${zoom}`);
+    await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(2);
+    await expect(page.locator(".map-marker-leader")).toHaveCount(2);
+    await expect(page.locator(".map-number.cluster")).toHaveCount(0);
+  }
+  await expect(page.getByRole("button", { name: "Acercar", exact: true })).toBeDisabled();
+});
+
+test("aprovecha el espacio vertical y el zoom libera grupos rodeados de estaciones", async ({ page }) => {
+  const state = await mockApi(page, 6);
+  const degreesPerPixel = 360 / (512 * 2 ** 10);
+  const positions = [[0, 0], [2, 0], [-100, 0], [100, 0], [0, -60], [0, 60]];
+  positions.forEach(([x, y], i) => {
+    state.mapStations.set(i, {
+      longitude: -3.516667 + x * degreesPerPixel,
+      latitude: 40.35 + y * degreesPerPixel * Math.cos(40.35 * Math.PI / 180),
+    });
+    state.mapReadings.set(i, { freshness: "fresh" });
+  });
+  // The stations on the sides leave room for two vertically stacked values.
+  state.excluded.add("00000000-0000-4000-8000-000000000004");
+  state.excluded.add("00000000-0000-4000-8000-000000000005");
+  await page.goto("/?view=-3.516667,40.35,10");
+  await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(4);
+  await expect(async () => {
+    const boxes = await page.locator(".map-number").evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().toJSON()),
+    );
+    expect(boxes).toHaveLength(4);
+    const [top, bottom] = boxes;
+    expect(top.height).toBeGreaterThan(0);
+    expect(bottom.height).toBeGreaterThan(0);
+    expect(top.y + top.height).toBeLessThan(bottom.y);
+  }).toPass({ timeout: 5000 });
+  state.excluded.clear();
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  const cluster = page.getByRole("button", { name: "Ampliar grupo de 2 estaciones" });
+  await expect(cluster).toBeVisible();
+  await cluster.click();
+  await expect(page.locator(".map-number.cluster")).toHaveCount(0);
+  await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(6);
+  const zoom = Number(new URL(page.url()).searchParams.get("view")!.split(",")[2]);
+  expect(zoom).toBeGreaterThan(10);
+  expect(zoom).toBeLessThan(18);
+});
+
+test("un grupo denso coincidente permite elegir estaciones sin seguir ampliando", async ({ page }) => {
+  const state = await mockApi(page, 12);
+  for (let i = 0; i < 12; i++) {
+    state.mapStations.set(i, { longitude: -3.516667, latitude: 40.35, freshness: "fresh" });
+    state.mapReadings.set(i, { freshness: "fresh" });
+  }
+  await page.goto("/?view=-3.516667,40.35,10");
+  await page.getByRole("button", { name: "Ver 12 estaciones", exact: true }).click();
+  await expect(page.locator(".group-list button")).toHaveCount(12);
+  await page.getByRole("button", { name: "Humedad", exact: false }).click();
+  await expect(page.locator(".group-list")).toHaveCount(0);
+  await page.getByRole("button", { name: "Ver 12 estaciones", exact: true }).click();
+  await expect(page.locator(".group-list")).toContainText("0,0 %");
+});
+
 test("límite de una hora solo en mapa: fuentes, ausencia, URL y tabla", async ({ page }) => {
   const state = await mockApi(page, 4);
   state.mapReadings.set(0, { age_seconds: 3600, value: 0 });

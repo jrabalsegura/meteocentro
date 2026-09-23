@@ -216,11 +216,11 @@ function App() {
     return () => window.removeEventListener("keydown", escape);
   });
   const stations = data?.items ?? [];
-  const mapStations = stations
+  const mapStations = useMemo(() => (data?.items ?? [])
     .filter((station) => !hideOldMapStations || isRecentMapReading(station.reading))
     .map((station) => isOldMapReading(station.reading)
       ? { ...station, freshness: "stale" }
-      : station);
+      : station), [data, hideOldMapStations]);
   const sorted = useMemo(
     () =>
       [...stations].sort((a, b) => {

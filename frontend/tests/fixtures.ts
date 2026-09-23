@@ -79,6 +79,7 @@ export async function mockApi(
     requests: [] as string[],
     current: {} as Partial<Current>,
     mapReadings: new Map<number, Partial<Reading> | null>(),
+    mapStations: new Map<number, Partial<Station>>(),
   };
   if (tiles !== "real")
     await page.route("https://www.ign.es/**", (route) =>
@@ -140,7 +141,7 @@ export async function mockApi(
     }
     const metric = url.searchParams.get("metric") || "temperature";
     const items = Array.from({ length: count }, (_, i) => {
-      const item = station(i, metric);
+      const item = { ...station(i, metric), ...state.mapStations.get(i) };
       if (state.mapReadings.has(i)) {
         const override = state.mapReadings.get(i);
         item.reading = override === null ? null : { ...reading(i, metric), ...override };

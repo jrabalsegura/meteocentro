@@ -111,6 +111,7 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 
 ## Ajustes de consulta — 23 de septiembre de 2026
 
+- Separar visualmente marcadores próximos o coincidentes cuando haya espacio libre alrededor, a cualquier zoom. Agrupar cuando la densidad impida leerlos sin colisiones; el zoom no es requisito previo para separarlos. El desplazamiento es solo de pantalla, con una línea hacia la coordenada publicada; no modifica posiciones, identidades ni históricos. Las coincidencias de coordenadas a minutos no prueban duplicidad. Se conserva la revisión de catálogo entre redes (250 m, ampliados a 1 km por precisión/nombre) y la excepción para identidades próximas a una exclusión.
 - Por petición del usuario, retirar escala y nota superpuestas al mapa; conservar la leyenda exterior y atribuciones.
 - Mostrar mínima, máxima y precipitación en la ficha inicial, además del valor seleccionado y humedad/viento. Distinguir diarios reportados por Meteoclimatic y resumen parcial del archivo civil de Madrid, con procedencia y cobertura. No presentar registros de ayer como datos de hoy.
 - Confirmación expresa: la tabla aplica provincia, red, estado, búsqueda y variable del mapa, pero mantiene todas las coincidencias aunque estén fuera del encuadre.

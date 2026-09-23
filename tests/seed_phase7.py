@@ -1,4 +1,4 @@
-"""Synthetic restore fixture, fed to an isolated image over stdin; never shipped."""
+"""Synthetic migration/persistence fixture, fed to an isolated image; never shipped."""
 
 import os
 from datetime import UTC, datetime
@@ -56,5 +56,5 @@ with Session(get_engine()) as db, db.begin():
         )
     )
     db.flush()
-    moderate(db, user.id, station_id=station.id, reason="Synthetic backup and restore")
+    moderate(db, user.id, station_id=station.id, reason="Synthetic migration and persistence")
 print("Synthetic observation, exclusion, account and audit created.")

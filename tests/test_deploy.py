@@ -2,10 +2,13 @@
 
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
     "ops", Path(__file__).resolve().parents[1] / "deploy/scripts/ops.py"
@@ -17,7 +20,7 @@ spec.loader.exec_module(ops)
 class DeploymentSafety(unittest.TestCase):
     def test_prepare_separates_secrets_and_rejects_mismatched_credentials(self):
         with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
+            root = Path(root).resolve()
             manifest = root / "images.json"
             manifest.write_text(
                 json.dumps(
@@ -73,36 +76,124 @@ class DeploymentSafety(unittest.TestCase):
         with self.assertRaises(ValueError):
             ops.safe_path("/tmp/%h/unsafe")
 
-    def test_incomplete_or_corrupt_backup_rejected(self):
-        with tempfile.TemporaryDirectory() as root:
-            path = Path(root)
-            with self.assertRaises(ValueError):
-                ops.verify_backup(path)
-            (path / "COMPLETE").touch()
-            (path / "database.dump").write_bytes(b"changed")
-            (path / "manifest.json").write_text(json.dumps({"sha256": "0" * 64}))
-            with self.assertRaises(ValueError):
-                ops.verify_backup(path)
 
-    def test_retention_preserves_seven_daily_four_weeks_and_preupdate(self):
-        with tempfile.TemporaryDirectory() as root:
-            path = Path(root)
-            now = ops.dt.datetime(2026, 9, 21, tzinfo=ops.dt.timezone.utc)
-            for age in range(45):
-                child = path / f"daily-{age:02d}"
-                child.mkdir()
-                (child / "COMPLETE").touch()
-                (child / "manifest.json").write_text(
-                    json.dumps({"created_at": (now - ops.dt.timedelta(days=age)).isoformat()})
+class DeploymentUpdates(unittest.TestCase):
+    def check_update(self, fail_migration=False):
+        """Exercise apply's real files/links with only host commands simulated."""
+        with tempfile.TemporaryDirectory() as root, ExitStack() as patches:
+            root = Path(root).resolve()
+            state = root / "state"
+            state.mkdir()
+            old, new = root / "old", root / "new"
+            metadata = {
+                "commit": "a" * 40,
+                "backend": ops.DB_IMAGE,
+                "web": ops.DB_IMAGE,
+                "db": ops.DB_IMAGE,
+                "dirty": False,
+                "mode": "rootless",
+                "config_dir": str(root / "config"),
+                "port": 8088,
+            }
+            for directory in (old, new):
+                (directory / "quadlet").mkdir(parents=True)
+                (directory / "release.json").write_text(json.dumps(metadata))
+                (directory / "quadlet/meteocentro-db.volume").write_text(
+                    "[Volume]\nVolumeName=meteocentro-db-data\n"
                 )
-            (path / "preupdate-important").mkdir()
-            (path / "daily-incomplete").mkdir()
-            ops.retain(path)
-            self.assertTrue(all((path / f"daily-{i:02d}").exists() for i in range(7)))
-            self.assertTrue((path / "preupdate-important").exists())
-            self.assertTrue((path / "daily-incomplete").exists())
-            self.assertLessEqual(len(list(path.iterdir())), 13)
-            self.assertFalse((path / "daily-44").exists())
+            (state / "current").symlink_to(old, target_is_directory=True)
+            events = []
+
+            def command(*args, **kwargs):
+                events.append(args)
+                if args[:2] == ("podman", "info"):
+                    return "v2\n"
+                if args[-1] == "migrate" and fail_migration:
+                    raise subprocess.CalledProcessError(1, args)
+                return ""
+
+            def host_command(args, **kwargs):
+                # Any unexpected host operation must fail the test.
+                self.assertEqual(
+                    args,
+                    [
+                        "/usr/lib/systemd/system-generators/podman-system-generator",
+                        "--user",
+                        "--dryrun",
+                    ],
+                )
+                return subprocess.CompletedProcess(
+                    args,
+                    0,
+                    stdout="\n".join(
+                        f"meteocentro-{s}.service" for s in ("db", "api", "worker", "web")
+                    ),
+                    stderr="",
+                )
+
+            original_is_file = Path.is_file
+            patches.enter_context(patch.object(ops.sys, "platform", "linux"))
+            patches.enter_context(patch.object(ops.os, "geteuid", return_value=1000))
+            patches.enter_context(patch.object(Path, "home", return_value=root))
+            patches.enter_context(
+                patch.object(
+                    Path,
+                    "is_file",
+                    lambda path: path.name == "podman-system-generator" or original_is_file(path),
+                )
+            )
+            patches.enter_context(patch.object(ops, "check_config"))
+            patches.enter_context(patch.object(ops, "run", side_effect=command))
+            patches.enter_context(patch.object(ops.subprocess, "run", side_effect=host_command))
+            patches.enter_context(patch.object(ops, "wait_db"))
+            smoke = patches.enter_context(patch.object(ops, "smoke"))
+            args = SimpleNamespace(release=new, state=state, engine="podman", min_free_gib=0)
+            if fail_migration:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    ops.apply(args)
+                self.assertEqual((state / "current").resolve(), old)
+                self.assertFalse((state / "previous").exists())
+                smoke.assert_not_called()
+            else:
+                ops.apply(args)
+                self.assertEqual((state / "previous").resolve(), old)
+                self.assertNotEqual((state / "current").resolve(), old)
+                smoke.assert_called_once_with("http://127.0.0.1:8088")
+            attempts = list(state.glob("attempt-*"))
+            self.assertEqual(len(attempts), 1)
+            status = json.loads((attempts[0] / "status.json").read_text())
+            self.assertEqual(status["status"], "failed" if fail_migration else "http_verified")
+            migrations = [i for i, cmd in enumerate(events) if cmd[-1] == "migrate"]
+            self.assertEqual(len(migrations), 1)
+            stops = [
+                i for i, cmd in enumerate(events) if cmd[:3] == ("systemctl", "--user", "stop")
+            ]
+            self.assertLess(stops[0], migrations[0])
+            for index in stops:
+                self.assertEqual(
+                    set(events[index][3:]),
+                    {
+                        "meteocentro-web",
+                        "meteocentro-api",
+                        "meteocentro-worker",
+                    },
+                )
+            if fail_migration:
+                self.assertGreater(stops[-1], migrations[0])
+                self.assertFalse(
+                    any(
+                        cmd[:3] == ("systemctl", "--user", "start") and "meteocentro-api" in cmd
+                        for cmd in events
+                    )
+                )
+            self.assertFalse(any(cmd[:2] == ("podman", "exec") for cmd in events))
+            self.assertTrue((root / ".config/containers/systemd/meteocentro-db.volume").is_file())
+
+    def test_update_stops_writers_and_switches_release_after_http_check(self):
+        self.check_update()
+
+    def test_failed_migration_preserves_previous_release_and_stops_apps(self):
+        self.check_update(fail_migration=True)
 
 
 if __name__ == "__main__":

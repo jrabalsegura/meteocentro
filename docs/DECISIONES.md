@@ -11,6 +11,7 @@ Fecha inicial: 9 de septiembre de 2026. Registrar aquí cambios de criterio para
 - Posibilidad de eliminar estaciones que el administrador considere erróneas.
 - Descubrimiento periódico de nuevas estaciones y recogida automática de observaciones.
 - Despliegue en contenedores Podman en el servidor habitual mediante SSH.
+- Decisión del 23-9-2026: web personal de consulta sin sistema de copias de seguridad. Se retiran comandos, copias previas a actualizar, timer, retención, destino externo y ensayo de restauración. Se conserva el volumen PostgreSQL y la comprobación de datos/exclusiones tras migraciones y reinicios; no se borran históricos ni artefactos locales existentes.
 - Se solicitaron las fases 0–7; el usuario ha indicado expresamente que la fase 7 se prepare sin desplegar.
 - Las coordenadas públicas de Meteoclimatic mostradas a minutos son suficientemente precisas para situar aproximadamente una estación en el mapa; no se exige precisión a segundos. El 21-9-2026 el usuario pide mostrar también las estaciones próximas a un límite provincial: la provincia se asigna según el punto publicado y puede ser aproximada; la incertidumbre de minutos deja de bloquear su publicación.
 
@@ -100,10 +101,10 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 
 ## Decisiones de fase 7 — 21 de septiembre de 2026
 
-- Preparación y validación local únicamente; sin SSH, publicación ni cambios en servicios existentes. El usuario pide conservar el flujo de sus otros despliegues. Se han leído las guías locales de finantialApp (Podman rootful/Quadlet/Nginx) y nueva_web_julio (separación local/producción, secretos y copias).
+- Preparación y validación local únicamente; sin SSH, publicación ni cambios en servicios existentes. El usuario pide conservar el flujo de sus otros despliegues. Se han leído las guías locales de finantialApp (Podman rootful/Quadlet/Nginx) y nueva_web_julio (separación local/producción y secretos).
 - Plantillas rootless por defecto conforme al resumen; opción rootful explícita para seguir el precedente de finanzas si el inventario del host lo aconseja. No se presupone que aquel inventario siga vigente.
 - Aclaración expresa del usuario: Meteoclimatic ya funciona junto con AEMET. El ejemplo de producción conserva **ambas redes activas para uso privado no comercial**, no cambia el `.env` local. Lectura privada obligatoria en el procedimiento inicial; publicación pública y diario/CSV Meteoclimatic siguen fuera del alcance aprobado.
 - Bases OCI y acciones CI fijadas por digest/SHA; versión de app por commit completo y digest de registro o ID local. Construcción sin publicación en push/PR; publicación GHCR solo al marcarla en una ejecución manual, sin SSH ni despliegue automático.
-- Volumen PostgreSQL nombrado, fuera del checkout, gestión de permisos por imagen oficial/Podman. Cambio de volumen o imagen DB en una actualización ordinaria rechazado; adopción inicial de copia importada explícita por nombre.
+- Volumen PostgreSQL nombrado, fuera del checkout, gestión de permisos por imagen oficial/Podman. Cambio de volumen o imagen DB en una actualización ordinaria rechazado; adopción inicial de volumen existente explícita por nombre.
 - Migración 0006 solo para latido persistente; monitorización en CLI/panel con edad del dato y retrasos, sin mensajería. Ningún reinicio se dispara porque un proveedor repita meteorología antigua.
-- Copia lógica con snapshot exportado compartido por dump y huellas; restore siempre a volumen nuevo aislado y comprobación de datos/exclusiones. Retención 7 diarias + 4 semanas con copia, sin borrar preactualizaciones ni históricos. Copia externa y secretos por canal cifrado separado a configurar en el despliegue.
+- Actualizada el 23-9-2026: se retira el diseño inicial de copias. Las actualizaciones siguen siendo manuales, con parada de escritores y una sola migración. Ante un fallo se conserva DB y se detienen las aplicaciones; una reversión depende de la compatibilidad del esquema, sin recuperación de datos a un instante anterior.

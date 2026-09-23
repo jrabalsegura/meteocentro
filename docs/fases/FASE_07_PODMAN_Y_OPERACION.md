@@ -29,7 +29,7 @@ El Nginx del host termina HTTPS y dirige únicamente el nuevo vhost al puerto lo
 - `deploy/quadlet/meteocentro-{web,api,worker,db}.container`, red y volúmenes asociados. Definir nombres sin colisión con otros servicios.
 - `deploy/nginx/meteocentro.conf.example`, con dominio y puerto parametrizados.
 - `deploy/env/meteocentro.env.example`, sin claves reales.
-- Scripts de preparación, despliegue de versión concreta, backup, restauración en entorno aislado y comprobación de servicio.
+- Scripts de preparación, despliegue de versión concreta, ensayo aislado de migraciones/persistencia y comprobación de servicio.
 - `docs/OPERACION.md` con instalación, actualización, recuperación y diagnóstico.
 - Flujo de GitHub Actions para comprobaciones y construcción. El despliegue será manual inicialmente, no en cada push.
 
@@ -43,7 +43,7 @@ Los volúmenes se sitúan en una ruta persistente con espacio medido, fuera del 
 
 La opción preferida es construir imágenes en CI y publicarlas en GHCR privado con etiqueta de commit y digest, si están disponibles los permisos necesarios. Para el servidor, usar credencial de lectura limitada al registro y acceso de lectura al repositorio cuando haga falta. No reutilizar credenciales corporativas de otros registros.
 
-El procedimiento de actualización debe registrar la versión actual, comprobar configuración y espacio, hacer backup, descargar imágenes exactas, ejecutar migración una vez, arrancar servicios y verificar salud, interfaz e ingestión. Evitar `latest`. Si una migración rompe compatibilidad, diseñar su reversión o una estrategia gradual antes de desplegar.
+El procedimiento de actualización debe registrar la versión actual, comprobar configuración y espacio, descargar imágenes exactas, detener escritores, ejecutar migración una vez, arrancar servicios y verificar salud, interfaz e ingestión. Evitar `latest`. Si una migración rompe compatibilidad, diseñar su reversión o una estrategia gradual antes de desplegar.
 
 Si CI o GHCR no están disponibles, documentar una construcción con Podman a partir de un commit exacto en el entorno acordado. Esta alternativa no convierte un despliegue remoto en una operación implícita al editar documentación.
 
@@ -53,9 +53,9 @@ Systemd mantiene API y worker activos y reinicia procesos fallidos con límites 
 
 Preparar una comprobación que detecte falta de observaciones nuevas cuando deberían haber llegado, además de HTTP y contenedores vivos. Mostrar estas incidencias en el panel. No añadir envíos por email o mensajería sin configurar ese canal expresamente.
 
-Backups propuestos: una copia diaria de PostgreSQL, retención inicial de siete diarias y cuatro semanales, y copia externa al servidor. Incluir catálogo, observaciones, exclusiones, auditoría y configuración recuperable; los secretos se respaldan por una vía protegida separada. Cifrar la copia externa y ensayar la restauración en una base aislada. Una copia en el mismo disco no cubre la pérdida del host.
+Por decisión del usuario del 23-9-2026, las copias de seguridad quedan fuera del proyecto: sin copias manuales o programadas, retención, destinos externos ni restauración. Los datos permanecen en el volumen PostgreSQL entre reinicios y actualizaciones; no hay recuperación de datos si se pierde ese volumen.
 
-Objetivos propuestos a validar: pérdida máxima de 24 horas si se depende del backup diario y recuperación en dos horas en el entorno ensayado. No son garantías hasta probar el procedimiento. Los logs tendrán rotación y las importaciones respetarán un límite de recursos para no agotar el servidor.
+Los logs tendrán rotación y las importaciones respetarán un límite de recursos para no agotar el servidor.
 
 ## Comprobación de salida
 
@@ -65,7 +65,6 @@ Objetivos propuestos a validar: pérdida máxima de 24 horas si se depende del b
 - [ ] `nginx -t` valida la nueva configuración y los vhosts anteriores siguen funcionando.
 - [ ] Se verifica HTTPS y el modo de lectura elegido; no se publica información de proveedores no autorizados.
 - [ ] Una actualización de versión conserva datos y exclusiones; el procedimiento de reversión queda ensayado o con su limitación concreta documentada.
-- [ ] Se restaura una copia en un entorno aislado y se comprueban observaciones y exclusiones.
 - [ ] El diagnóstico detecta un worker detenido y un proveedor que responde sin datos nuevos.
 - [ ] Se documentan consumo de memoria, almacenamiento y ritmo de crecimiento observado.
 
@@ -75,10 +74,10 @@ Objetivos propuestos a validar: pérdida máxima de 24 horas si se depende del b
 Lee AGENTS.md, resumen, estado y
 docs/fases/FASE_07_PODMAN_Y_OPERACION.md. Prepara Containerfiles,
 Quadlet, Nginx, configuración, CI y procedimientos reproducibles de
-despliegue, actualización, backup y restauración. Valida localmente lo
+despliegue, actualización y diagnóstico, sin copias de seguridad. Valida localmente lo
 posible. Si además se te ha pedido desplegar, comprueba primero el host
 con ssh remote y presenta los cambios concretos que afecten al servidor.
 Conserva sus otros servicios y usa versiones inmutables. No declares
-probado un reinicio o una restauración que no hayas ejecutado.
+probado un reinicio o una migración que no hayas ejecutado.
 Actualiza docs/ESTADO.md con resultados y limitaciones.
 ```

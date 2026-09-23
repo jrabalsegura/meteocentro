@@ -35,7 +35,7 @@ Las claves permanecen fuera del panel y de sus respuestas. La UI puede indicar �
 
 La vinculación de orígenes requiere revisión. Al unir uno nuevo a una estación excluida se mantiene la exclusión efectiva. Si solo se pausa un origen y otro sigue activo, el panel debe explicar qué dato se verá. Dividir una vinculación errónea conserva el historial y no restaura silenciosamente un origen con exclusión propia.
 
-Las exclusiones y la auditoría forman parte de las copias de seguridad. El sistema nunca envía órdenes de baja a los proveedores.
+Las exclusiones y la auditoría persisten en PostgreSQL junto con el archivo meteorológico. El sistema nunca envía órdenes de baja a los proveedores.
 
 ## Gestión de descubrimiento
 

@@ -13,10 +13,12 @@ const boundaries = JSON.parse(boundariesText) as {
 };
 import {
   color,
+  date,
   freshnessLabels,
   number,
   type Station,
 } from "./data";
+import { layoutMarkers } from "./mapMarkers";
 
 const wmts = (service: string, layer: string) =>
   `https://www.ign.es/wmts/${service}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=default&FORMAT=image/jpeg&TILEMATRIXSET=GoogleMapsCompatible&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`;
@@ -102,6 +104,8 @@ export default function WeatherMap({
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<LibreMap | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
+  const groupPopup = useRef<maplibregl.Popup | null>(null);
+  const focusedMarker = useRef<string | null>(null);
   const [base, setBase] = useState<"topo" | "light">("topo");
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
@@ -186,83 +190,81 @@ export default function WeatherMap({
       return;
     }
   }, []);
+  useEffect(() => () => {
+    groupPopup.current?.remove();
+    groupPopup.current = null;
+  }, [stations, metric, selected]);
   useEffect(() => {
     const instance = map.current;
     if (!instance || !ready) return;
     markers.current.forEach((marker) => marker.remove());
     markers.current = [];
-    const groups: { x: number; y: number; items: Station[] }[] = [];
-    const grid = new Map<string, number[]>();
-    for (const station of [...stations].sort(
-      (a, b) => Number(b.id === selected) - Number(a.id === selected),
-    )) {
-      if (station.latitude == null || station.longitude == null) continue;
-      const point = instance.project([station.longitude, station.latitude]);
-      if (
-        point.x < -40 ||
-        point.y < -30 ||
-        point.x > instance.getContainer().clientWidth + 40 ||
-        point.y > instance.getContainer().clientHeight + 30
-      )
-        continue;
-      const col = Math.floor(point.x / 66),
-        row = Math.floor(point.y / 44);
-      let neighbor: number | undefined;
-      for (let x = col - 1; x <= col + 1; x++)
-        for (let y = row - 1; y <= row + 1; y++) {
-          for (const index of grid.get(`${x}:${y}`) ?? []) {
-            if (
-              Math.abs(groups[index].x - point.x) < 64 &&
-              Math.abs(groups[index].y - point.y) < 38
-            )
-              neighbor = index;
-          }
-        }
-      if (neighbor !== undefined) groups[neighbor].items.push(station);
-      else {
-        const key = `${col}:${row}`;
-        const cell = grid.get(key) ?? [];
-        cell.push(groups.length);
-        grid.set(key, cell);
-        groups.push({ x: point.x, y: point.y, items: [station] });
-      }
-    }
-    for (const { items: group } of groups) {
+    const points = stations.flatMap((station) => {
+      if (station.latitude == null || station.longitude == null) return [];
+      const { x, y } = instance.project([station.longitude, station.latitude]);
+      return [{ station, x, y }];
+    });
+    const groups = layoutMarkers(points, instance.getContainer().clientWidth, instance.getContainer().clientHeight);
+    for (const { x, y, items } of groups) {
+      const group = items.map((item) => item.station);
       const station = group[0];
+      const coincident = group.every((item) => item.latitude === station.latitude && item.longitude === station.longitude);
+      const showList = coincident || instance.getZoom() >= 17;
+      const offset: [number, number] = [x - items[0].x, y - items[0].y];
+      const displaced = Math.hypot(...offset) > 1;
       const button = document.createElement("button");
-      button.className = `map-number ${group.length > 1 ? "cluster" : station.freshness} ${station.id === selected ? "selected" : ""}`;
+      button.dataset.mapFocusId = group.map((item) => item.id).join(",");
+      button.className = `map-number ${group.length > 1 ? "cluster" : station.freshness} ${group.some((item) => item.id === selected) ? "selected" : ""}`;
       button.style.color = color(station.reading?.value, metric);
       button.textContent =
         group.length > 1
-          ? `${group.length} est.`
+          ? `${showList ? "Ver " : ""}${group.length} est.`
           : number(station.reading?.value);
       button.setAttribute(
         "aria-label",
         group.length > 1
-          ? `Ampliar grupo de ${group.length} estaciones`
+          ? `${showList ? "Ver" : "Ampliar grupo de"} ${group.length} estaciones`
           : `${station.name}: ${number(station.reading?.value)} ${station.reading?.unit ?? ""}, ${freshnessLabels[station.freshness]}. Abrir resumen`,
       );
-      button.addEventListener("click", () => {
+      button.title = group.length > 1
+        ? button.getAttribute("aria-label")!
+        : `${station.name}${displaced ? ". Marcador separado visualmente; la línea señala la ubicación publicada." : ""}`;
+      button.addEventListener("click", (event) => {
+        // Do not let the opening click reach the map and immediately close the popup.
+        event.stopPropagation();
         if (group.length === 1) {
           callbacks.current.onSelect(station.id);
           return;
         }
-        if (instance.getZoom() >= 17) {
+        if (showList) {
+          groupPopup.current?.remove();
           const list = document.createElement("div");
           list.className = "group-list";
+          const explanation = document.createElement("p");
+          explanation.textContent = coincident
+            ? "Estas estaciones comparten coordenadas publicadas. La coincidencia de ubicación no implica que sean duplicadas."
+            : "Las estaciones están muy próximas en el mapa. Selecciona una para ver su resumen.";
+          list.append(explanation);
           for (const item of group) {
             const choice = document.createElement("button");
-            choice.textContent = item.name;
+            const name = document.createElement("strong");
+            name.textContent = `${item.name} · ${number(item.reading?.value)} ${item.reading?.unit ?? ""}`;
+            const origin = document.createElement("span");
+            origin.textContent = item.sources.map((source) => `${source.provider.toUpperCase()} · ${source.external_id}`).join(" / ");
+            const observed = document.createElement("span");
+            observed.textContent = date(item.reading?.observed_at);
+            choice.append(name, origin, observed);
             choice.onclick = () => {
               popup.remove();
               callbacks.current.onSelect(item.id);
             };
             list.append(choice);
           }
-          const popup = new maplibregl.Popup({ maxWidth: "280px" })
+          const popup = new maplibregl.Popup({ maxWidth: "280px", closeOnMove: true })
             .setLngLat([station.longitude!, station.latitude!])
             .setDOMContent(list)
             .addTo(instance);
+          groupPopup.current = popup;
         } else {
           const box = new maplibregl.LngLatBounds();
           group.forEach((s) => box.extend([s.longitude!, s.latitude!]));
@@ -273,13 +275,34 @@ export default function WeatherMap({
           });
         }
       });
+      if (displaced) {
+        const leader = document.createElement("div");
+        leader.className = "map-marker-leader";
+        leader.setAttribute("aria-hidden", "true");
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        const line = document.createElementNS(svg.namespaceURI, "line");
+        line.setAttribute("x2", String(offset[0]));
+        line.setAttribute("y2", String(offset[1]));
+        const dot = document.createElementNS(svg.namespaceURI, "circle");
+        dot.setAttribute("r", "3");
+        svg.append(line, dot);
+        leader.append(svg);
+        markers.current.push(new maplibregl.Marker({ element: leader })
+          .setLngLat([station.longitude!, station.latitude!]).addTo(instance));
+      }
       markers.current.push(
         new maplibregl.Marker({ element: button })
           .setLngLat([station.longitude!, station.latitude!])
+          .setOffset(offset)
           .addTo(instance),
       );
+      if (button.dataset.mapFocusId === focusedMarker.current && document.activeElement === document.body)
+        button.focus({ preventScroll: true });
     }
+    focusedMarker.current = null;
     return () => {
+      focusedMarker.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement.dataset.mapFocusId ?? null : null;
       markers.current.forEach((marker) => marker.remove());
       markers.current = [];
     };

@@ -12,7 +12,7 @@ La portada será el mapa, con cabecera compacta, selector de temperatura/humedad
 
 Por petición del usuario del 21-9-2026, la vista inicial se centra en Madrid ciudad: longitud `-3.70765`, latitud `40.42437`, zoom `10.69`, para consultar las estaciones de la ciudad desplegadas. Esta preferencia se conserva en las fases posteriores. Una vista válida en la URL prevalece; cuando falta o es inválida se usa Madrid. El botón «Ver las cuatro provincias» ajusta el mapa a la unión provincial. El encuadre no limita el catálogo ni selecciona automáticamente una provincia o red. No se pide geolocalización. El usuario puede cambiar entre fondo topográfico y claro. Las atribuciones del fondo y de las redes permanecen visibles.
 
-En áreas densas, mostrar valores legibles con control de colisiones. Si se agrupan puntos, el símbolo de grupo indica número de estaciones y se distingue de un dato de temperatura. Al ampliar se recuperan los puntos individuales; la agrupación no calcula un valor meteorológico ficticio.
+En áreas densas, mostrar valores legibles con control de colisiones. Si se agrupan puntos, el símbolo de grupo indica número de estaciones y se distingue de un dato de temperatura. Según la aclaración del usuario del 23-9-2026, los puntos próximos o coincidentes se separan visualmente a cualquier zoom cuando haya espacio libre, con líneas hacia las coordenadas publicadas. Solo se mantiene el grupo cuando no caben sin colisiones. Ampliar permite resolver la densidad; las coordenadas idénticas ofrecen una lista cuando no puedan separarse. La agrupación no calcula un valor meteorológico ficticio ni fusiona identidades.
 
 ## Trabajo
 

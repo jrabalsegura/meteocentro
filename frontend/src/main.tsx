@@ -20,6 +20,7 @@ import {
 import type { View } from "./WeatherMap";
 import "./style.css";
 import { Access } from "./Access";
+import StationSummary from "./StationSummary";
 const AdminPage = lazy(() => import("./AdminPage"));
 const HistoryPage = lazy(() => import("./HistoryPage"));
 const WeatherMap = lazy(() => import("./WeatherMap"));
@@ -46,7 +47,7 @@ function viewFrom(params: URLSearchParams): View | null {
 }
 function App() {
   const [route, setRoute] = useState(readLocation);
-  const [data, setData] = useState<MapPage | null>(null);
+  const [result, setResult] = useState<{ query: string; data: MapPage } | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [detail, setDetail] = useState<Current | null>(null);
   const [error, setError] = useState("");
@@ -59,7 +60,6 @@ function App() {
     !window.matchMedia("(max-width: 700px)").matches,
   );
   const heading = useRef<HTMLHeadingElement>(null);
-  const lastQuery = useRef<string | null>(null);
   const loadedSelection = useRef<string | null>(null);
   const focusedSelection = useRef("");
   const initialView = useRef(viewFrom(route.params));
@@ -80,6 +80,8 @@ function App() {
       if (value) filters.append(key, value);
   }
   const query = filters.toString();
+  // Never show a previous filter population while its replacement is loading.
+  const data = result?.query === query ? result.data : null;
   function navigate(
     path: string,
     changes: Record<string, string | null> = {},
@@ -143,22 +145,20 @@ function App() {
     if (document.hidden) return () => controller.abort();
     setBusy(true);
     setError("");
-    // Keep focus and geometry during a refresh; discard old filter populations.
-    if (lastQuery.current !== query) setData(null);
-    lastQuery.current = query;
     const timer = window.setTimeout(() => {
       void Promise.all([
         api<MapPage>(`/api/v1/map?${query}`, controller.signal),
         api<{ items: Provider[] }>("/api/v1/providers", controller.signal),
       ])
         .then(([next, networks]) => {
-          setData(next);
+          if (controller.signal.aborted) return;
+          setResult({ query, data: next });
           setProviders(networks.items.filter((p) => p.code !== "wunderground"));
           setBusy(false);
         })
         .catch((error) => {
           if (!controller.signal.aborted) {
-            setData(null);
+            setResult(null);
             setBusy(false);
             setError(error.message);
           }
@@ -182,7 +182,9 @@ function App() {
       `/api/v1/stations/${encodeURIComponent(selectedId)}/current`,
       controller.signal,
     )
-      .then(setDetail)
+      .then((next) => {
+        if (!controller.signal.aborted) setDetail(next);
+      })
       .catch((error) => {
         if (!controller.signal.aborted) {
           setDetail(null);
@@ -618,6 +620,19 @@ function App() {
                         ? "Altitud no disponible"
                         : `${number(detail.altitude_m)} m de altitud`}
                     </p>
+                    {!detailId && (
+                      <div className="station-current">
+                        <div>
+                          <h3>{info.label}</h3>
+                          <small>{preferred ? `${preferred.provider.toUpperCase()} · ${date(preferred.observed_at)}` : "Sin observación"}</small>
+                          {preferred?.freshness === "stale" && <small>Desactualizada</small>}
+                        </div>
+                        <div className="popup-value" style={{ color: color(preferred?.value, metric) }}>
+                          {number(preferred?.value)} <span>{preferred?.unit ?? info.unit}</span>
+                        </div>
+                      </div>
+                    )}
+                    <StationSummary station={detail} source={effectiveSource} />
                     <label className="source-select">
                       Fuente del dato
                       <select
@@ -641,29 +656,12 @@ function App() {
                         muestran los otros orígenes elegibles.
                       </p>
                     )}
-                    <p className="selection-policy">
-                      Preferencia: datos recientes utilizables, AEMET y
-                      después Meteoclimatic. La fuente se indica en cada
-                      medida.
-                    </p>
                     {!detailId && (
                       <>
-                        <div
-                          className="popup-value"
-                          style={{ color: color(preferred?.value, metric) }}
-                        >
-                          {number(preferred?.value)}{" "}
-                          <span>{preferred?.unit ?? info.unit}</span>
-                        </div>
-                        <h3>{info.label}</h3>
-                        {preferred ? (
-                          <ReadingMeta reading={preferred} />
-                        ) : (
-                          <p>
-                            Sin dato de esta variable en la fuente
-                            seleccionada.
-                          </p>
-                        )}
+                        <details className="current-metadata">
+                          <summary>Detalle de la observación</summary>
+                          {preferred ? <ReadingMeta reading={preferred} /> : <p>Sin dato de esta variable en la fuente seleccionada.</p>}
+                        </details>
                         <button
                           className="primary-button"
                           onClick={() => openStation(detail.id)}

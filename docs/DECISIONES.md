@@ -108,3 +108,10 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 - Volumen PostgreSQL nombrado, fuera del checkout, gestión de permisos por imagen oficial/Podman. Cambio de volumen o imagen DB en una actualización ordinaria rechazado; adopción inicial de volumen existente explícita por nombre.
 - Migración 0006 solo para latido persistente; monitorización en CLI/panel con edad del dato y retrasos, sin mensajería. Ningún reinicio se dispara porque un proveedor repita meteorología antigua.
 - Actualizada el 23-9-2026: se retira el diseño inicial de copias. Las actualizaciones siguen siendo manuales, con parada de escritores y una sola migración. Ante un fallo se conserva DB y se detienen las aplicaciones; una reversión depende de la compatibilidad del esquema, sin recuperación de datos a un instante anterior.
+
+## Ajustes de consulta — 23 de septiembre de 2026
+
+- Por petición del usuario, retirar escala y nota superpuestas al mapa; conservar la leyenda exterior y atribuciones.
+- Mostrar mínima, máxima y precipitación en la ficha inicial, además del valor seleccionado y humedad/viento. Distinguir diarios reportados por Meteoclimatic y resumen parcial del archivo civil de Madrid, con procedencia y cobertura. No presentar registros de ayer como datos de hoy.
+- Confirmación expresa: la tabla aplica provincia, red, estado, búsqueda y variable del mapa, pero mantiene todas las coincidencias aunque estén fuera del encuadre.
+- El usuario solicita desplegar estos cambios mediante GitHub en la instalación existente. Despliegue manual de commit comprobado; no habilitar publicación automática por push.

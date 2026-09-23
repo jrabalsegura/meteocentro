@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from meteocentro.db import get_session
 from meteocentro.domain.eligibility import eligible_source_ids, eligible_station_ids
+from meteocentro.history import MADRID, aggregate, channels, civil_window
 from meteocentro.models import LatestObservation, Observation, Provider, Station, StationSource
 
 router = APIRouter(prefix="/api/v1")
@@ -286,4 +287,60 @@ def current(station_id: UUID, db: Annotated[Session, Depends(get_session)]):
     items = project(read_rows(db, candidates), now)
     if not items:
         raise HTTPException(404, detail={"code": "station_not_found"})
-    return {**items[0], "generated_at": now}
+    return {**items[0], "generated_at": now, "day_summaries": day_summaries(db, station_id, now)}
+
+
+def day_summaries(db, station_id, now):
+    """Today's local archive, by source/channel; no provider calls or cached diaries.
+
+    Reported provider counters/extremes remain in readings with their own basis.
+    Never sum those counters or mix sources to fill gaps in a civil day.
+    """
+    start, _ = civil_window(now.astimezone(MADRID).date())
+    if now <= start:
+        return []
+    rows = db.execute(
+        select(Observation, StationSource, Provider)
+        .join(StationSource, Observation.source_id == StationSource.id)
+        .join(Provider, StationSource.provider_id == Provider.id)
+        .where(
+            StationSource.id.in_(eligible_source_ids(station_id)),
+            Observation.observed_at >= start,
+            Observation.observed_at <= now,
+            or_(Observation.metrics.has_key("temperature"), Observation.metrics.has_key("rain")),
+        )
+        .order_by(Observation.observed_at)
+    ).all()
+    origins = {}
+    for observation, source, provider in rows:
+        if source.id not in origins:
+            origins[source.id] = (source, provider, [])
+        origins[source.id][2].append(observation)
+    summaries = []
+    for source, provider, observations in origins.values():
+        cadence = source.capabilities.get("native_cadence_seconds") or provider.capabilities.get(
+            "native_cadence_seconds"
+        )
+        if not isinstance(cadence, (int, float)) or not 1 <= cadence <= 3600:
+            continue
+        for channel, (description, samples) in channels(observations).items():
+            metric, kind = description["metric"], description["kind"]
+            if not (
+                (metric == "temperature" and kind == "instant")
+                or (metric == "rain" and kind == "interval_total")
+            ):
+                continue
+            summaries.append(
+                {
+                    **aggregate(samples, start, now, cadence, description),
+                    "channel": channel,
+                    "source_id": str(source.id),
+                    "provider": provider.code,
+                    "external_id": source.external_id,
+                    "period_start": start,
+                    "period_end": now,
+                    "period_basis": "Europe/Madrid",
+                    "observed_at": max(row.observed_at for row, _ in samples),
+                }
+            )
+    return summaries

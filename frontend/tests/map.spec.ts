@@ -243,3 +243,83 @@ test("el refresco conserva el foco de la ficha y sus controles", async ({
   await expect.poll(() => state.requests.length).toBe(before + 4);
   await expect(source).toBeFocused();
 });
+
+test("la tabla comparte todos los filtros sin limitarse al encuadre", async ({ page }) => {
+  await mockApi(page, 80);
+  await page.goto("/");
+  await expect(page.locator("tbody tr")).toHaveCount(50);
+  await page.getByRole("button", { name: "Siguiente" }).click();
+  await expect(page.locator("tbody tr")).toHaveCount(30);
+  await page.getByLabel("Provincia", { exact: true }).selectOption("28");
+  await expect(page.locator("tbody tr")).toHaveCount(20);
+  await page.getByLabel("Estado", { exact: true }).selectOption("stale");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator("tbody")).toContainText("SINTÉTICA 0004");
+  await page.getByLabel("Estado", { exact: true }).selectOption("fresh");
+  await page.getByLabel("Buscar estación", { exact: true }).fill("0012");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator("tbody")).toContainText("SINTÉTICA 0012");
+  await page.getByLabel("Fuente", { exact: true }).selectOption("meteoclimatic");
+  await expect(page.locator("tbody tr")).toHaveCount(0);
+  await page.getByLabel("Fuente", { exact: true }).selectOption("aemet");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await page.getByRole("button", { name: "Ver las cuatro provincias" }).click();
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator(".map-scale, .map-note")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Leyenda", exact: true })).toBeVisible();
+});
+
+test("resumen diario visible en móvil: cero, cobertura y ausencia de lluvia", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await mockApi(page);
+  state.current.day_summaries = [{
+    metric: "temperature", unit: "°C", source_id: "source-0", provider: "aemet", external_id: "SYN-0",
+    minimum: 0, maximum: 18, total: null, coverage: .5, partial: true,
+    period_start: "2026-09-18T22:00:00Z", period_end: "2026-09-19T08:00:00Z", observed_at: "2026-09-19T07:00:00Z",
+  }];
+  await page.goto("/?station=00000000-0000-4000-8000-000000000000");
+  const summary = page.getByRole("region", { name: "Resumen del día" });
+  await expect(summary).toBeVisible();
+  await expect(summary.locator(".daily-stat").nth(0)).toContainText("0,0 °C");
+  await expect(summary.locator(".daily-stat").nth(1)).toContainText("18,0 °C");
+  await expect(summary.locator(".daily-stat").nth(0)).toContainText("Parcial · cobertura 50 %");
+  await expect(summary.locator(".daily-stat").nth(2)).toContainText("Sin datos de hoy");
+  const panel = await page.locator(".station-panel").boundingBox();
+  const daily = await summary.locator(".daily-grid").boundingBox();
+  expect(daily!.y + daily!.height).toBeLessThan(panel!.y + panel!.height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  await expect(page.locator("tbody tr")).toHaveCount(32);
+  await expect(page.locator(".map-canvas canvas")).toBeVisible();
+  await page.screenshot({ path: "test-results/mobile-daily-summary.png" });
+});
+
+test("diarios reportados respetan fuente, fecha y contador sin inventar día civil", async ({ page }) => {
+  const { reading } = await import("./fixtures");
+  const state = await mockApi(page);
+  state.current.readings = [
+    reading(0),
+    ...["temperature_daily_min", "temperature_daily_max", "rain_daily"].map((metric, i) => ({
+      ...reading(0), metric, value: [4, 23, 0][i], unit: i === 2 ? "mm" : "°C",
+      kind: i === 2 ? "daily_counter" : i === 0 ? "daily_minimum" : "daily_maximum",
+      period_basis: "provider_day_timezone_unknown", provider: "meteoclimatic", source_id: "meteo-0",
+    })),
+  ];
+  state.current.sources = [
+    { id: "source-0", provider: "aemet", external_id: "SYN-0", source_url: null, coordinate_precision: null, attribution: "AEMET", provider_status: "verified" },
+    { id: "meteo-0", provider: "meteoclimatic", external_id: "SYN-M0", source_url: null, coordinate_precision: null, attribution: "Meteoclimatic", provider_status: "verified" },
+  ];
+  await page.goto("/?station=00000000-0000-4000-8000-000000000000&source=meteo-0");
+  const summary = page.getByRole("region", { name: "Resumen del día" });
+  await expect(summary).toContainText("4,0 °C");
+  await expect(summary).toContainText("23,0 °C");
+  await expect(summary).toContainText("0,0 mm");
+  await expect(summary).toContainText("horario de reinicio desconocido");
+  await page.getByLabel("Fuente del dato", { exact: true }).selectOption("source-0");
+  await expect(summary.locator(".daily-stat").filter({ hasText: "Sin datos de hoy" })).toHaveCount(3);
+  await page.getByLabel("Fuente del dato", { exact: true }).selectOption("meteo-0");
+  state.current.generated_at = "2026-09-20T08:00:00Z";
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(summary.locator(".daily-stat").filter({ hasText: "Sin datos de hoy" })).toHaveCount(3);
+});

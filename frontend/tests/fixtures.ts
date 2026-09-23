@@ -78,6 +78,7 @@ export async function mockApi(
     fail: false,
     requests: [] as string[],
     current: {} as Partial<Current>,
+    mapReadings: new Map<number, Partial<Reading> | null>(),
   };
   if (tiles !== "real")
     await page.route("https://www.ign.es/**", (route) =>
@@ -138,9 +139,14 @@ export async function mockApi(
       });
     }
     const metric = url.searchParams.get("metric") || "temperature";
-    const items = Array.from({ length: count }, (_, i) =>
-      station(i, metric),
-    ).filter(
+    const items = Array.from({ length: count }, (_, i) => {
+      const item = station(i, metric);
+      if (state.mapReadings.has(i)) {
+        const override = state.mapReadings.get(i);
+        item.reading = override === null ? null : { ...reading(i, metric), ...override };
+      }
+      return item;
+    }).filter(
       (s) =>
         !state.excluded.has(s.id) &&
         (!url.searchParams.get("network") || s.sources.some((source) => source.provider === url.searchParams.get("network"))) &&

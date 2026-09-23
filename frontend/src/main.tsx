@@ -6,6 +6,8 @@ import {
   color,
   date,
   freshnessLabels,
+  isOldMapReading,
+  isRecentMapReading,
   metricInfo,
   metricNames,
   number,
@@ -74,6 +76,7 @@ function App() {
     : null;
   const selectedId = detailId ?? route.params.get("station");
   const chosenSource = route.params.get("source") ?? "";
+  const hideOldMapStations = route.params.get("hide_old") !== "0";
   const filters = new URLSearchParams({ metric, limit: "2000" });
   for (const key of ["province", "network", "freshness", "q"]) {
     for (const value of route.params.getAll(key))
@@ -213,6 +216,11 @@ function App() {
     return () => window.removeEventListener("keydown", escape);
   });
   const stations = data?.items ?? [];
+  const mapStations = stations
+    .filter((station) => !hideOldMapStations || isRecentMapReading(station.reading))
+    .map((station) => isOldMapReading(station.reading)
+      ? { ...station, freshness: "stale" }
+      : station);
   const sorted = useMemo(
     () =>
       [...stations].sort((a, b) => {
@@ -476,7 +484,7 @@ function App() {
                 </select>
               </label>
               <label>
-                Estado
+                Estado según fuente
                 <select
                   aria-label="Estado"
                   value={route.params.get("freshness") ?? "all"}
@@ -492,6 +500,20 @@ function App() {
                   ))}
                 </select>
               </label>
+              <div className="map-age-filter">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={hideOldMapStations}
+                    onChange={(e) => navigate(route.path, { hide_old: e.target.checked ? null : "0" })}
+                  />
+                  Ocultar en el mapa estaciones con más de 1 h sin actualizar
+                </label>
+                <small>
+                  Según la observación de la variable seleccionada; también oculta las que no tienen dato.
+                  El listado las conserva.
+                </small>
+              </div>
             </div>
           </details>
         </section>
@@ -542,7 +564,8 @@ function App() {
             sin dato actual
           </span>
           <small>
-            Según variable y filtros · {stations.length} visibles
+            Según fuente, variable y filtros · {stations.length} en el listado
+            {!isTable && ` · ${mapStations.length} en el mapa`}
           </small>
         </div>
         {!isTable && (
@@ -557,7 +580,7 @@ function App() {
               }
             >
               <WeatherMap
-                stations={stations}
+                stations={mapStations}
                 metric={metric}
                 selected={selectedId}
                 initialView={initialView.current}
@@ -570,12 +593,14 @@ function App() {
               <strong>{info.unit}</strong>
               <span>{info.period}</span>
             </div>
-            {!busy && !error && !stations.length && (
+            {!busy && !error && !mapStations.length && (
               <div className="empty-map">
-                No hay estaciones que cumplan estos filtros.
+                {stations.length
+                  ? "No hay datos de la última hora para esta selección. Las estaciones siguen en el listado."
+                  : "No hay estaciones que cumplan estos filtros."}
                 <button
                   onClick={() =>
-                    navigate("/", {
+                    navigate("/", stations.length ? { hide_old: "0" } : {
                       q: null,
                       province: null,
                       network: null,
@@ -583,7 +608,7 @@ function App() {
                     })
                   }
                 >
-                  Restablecer filtros
+                  {stations.length ? "Mostrar también las desactualizadas" : "Restablecer filtros"}
                 </button>
               </div>
             )}
@@ -839,7 +864,7 @@ function App() {
                   : "Las estaciones, al detalle"}
               </h2>
               <p>
-                La misma selección del mapa · {stations.length} estaciones
+                {stations.length} estaciones según los filtros · incluye las ocultas en el mapa por antigüedad
               </p>
             </div>
             <a
@@ -905,7 +930,8 @@ function App() {
                   <tr
                     key={station.id}
                     className={
-                      selectedId === station.id ? "selected-row" : ""
+                      [selectedId === station.id ? "selected-row" : "",
+                        isOldMapReading(station.reading) ? "outdated-row" : ""].join(" ")
                     }
                   >
                     <td>
@@ -966,9 +992,14 @@ function App() {
                       </small>
                     </td>
                     <td>
-                      <span className={`status-tag ${station.freshness}`}>
-                        {freshnessLabels[station.freshness]}
+                      <span className={`status-tag ${isOldMapReading(station.reading) ? "stale" : station.freshness}`}>
+                        {isOldMapReading(station.reading)
+                          ? "Más de 1 h sin actualizar"
+                          : freshnessLabels[station.freshness]}
                       </span>
+                      {hideOldMapStations && !isRecentMapReading(station.reading) && (
+                        <small>Oculta en el mapa</small>
+                      )}
                     </td>
                   </tr>
                 ))}

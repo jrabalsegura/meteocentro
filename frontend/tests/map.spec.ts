@@ -1,6 +1,73 @@
 import { test, expect } from "@playwright/test";
 import { mockApi } from "./fixtures";
 
+test("límite de una hora solo en mapa: fuentes, ausencia, URL y tabla", async ({ page }) => {
+  const state = await mockApi(page, 4);
+  state.mapReadings.set(0, { age_seconds: 3600, value: 0 });
+  // AEMET still reports fresh until 90 min; the map must enforce 60 min.
+  state.mapReadings.set(1, { age_seconds: 3601, freshness: "fresh" });
+  // Meteoclimatic reports stale after 45 min, but this value is within one hour.
+  state.mapReadings.set(2, { age_seconds: 3000, freshness: "stale", provider: "meteoclimatic" });
+  state.mapReadings.set(3, null);
+  await page.goto("/?view=-3.7,40.5,7");
+  const checkbox = page.getByRole("checkbox", { name: /Ocultar en el mapa/ });
+  await expect(checkbox).toBeChecked();
+  await expect(page.locator(".map-number")).toHaveCount(2);
+  await expect(page.locator("tbody tr")).toHaveCount(4);
+  const oldRow = page.locator("tbody tr").filter({ hasText: "SINTÉTICA 0001" });
+  await expect(oldRow).toHaveClass(/outdated-row/);
+  await expect(oldRow).toContainText("Más de 1 h sin actualizar");
+  await expect(oldRow).toContainText("Oculta en el mapa");
+  await expect(oldRow).not.toContainText("Reciente");
+  const requests = state.requests.length;
+  await checkbox.uncheck();
+  await expect(page).toHaveURL(/hide_old=0/);
+  await expect(page.locator(".map-number")).toHaveCount(4);
+  await expect(page.locator(".map-number").filter({ hasText: "-4,0" })).toHaveClass(/stale/);
+  await expect(oldRow).not.toContainText("Oculta en el mapa");
+  expect(state.requests.length).toBe(requests);
+  await page.reload();
+  await expect(checkbox).not.toBeChecked();
+  await expect(page.locator(".map-number")).toHaveCount(4);
+  await page.getByRole("button", { name: "Humedad", exact: false }).click();
+  await expect(page.locator(".map-number")).toHaveCount(4);
+  await checkbox.check();
+  await expect(page.locator(".map-number")).toHaveCount(2);
+  await expect(page.locator("tbody tr")).toHaveCount(4);
+  await page.reload();
+  await expect(checkbox).toBeChecked();
+  await expect(page.locator(".map-number")).toHaveCount(2);
+  // Future observations are returned by the API as unknown with a clamped age of zero.
+  state.mapReadings.set(0, { age_seconds: 0, freshness: "unknown" });
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(page.locator(".map-number")).toHaveCount(1);
+  await expect(page.locator("tbody tr")).toHaveCount(4);
+});
+
+test("el refresco automático oculta datos envejecidos y recupera los nuevos", async ({ page }) => {
+  const state = await mockApi(page, 1);
+  state.mapReadings.set(0, { age_seconds: 3600 });
+  await page.clock.install();
+  await page.goto("/?view=-3.7,40.85,10");
+  await page.clock.runFor(1000);
+  await expect(page.locator(".map-number")).toHaveCount(1);
+  state.mapReadings.set(0, { age_seconds: 3660, fetched_at: new Date().toISOString() });
+  await page.clock.runFor(60000);
+  await expect(page.locator(".map-number")).toHaveCount(0);
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator(".empty-map")).toContainText("siguen en el listado");
+  await expect(page.locator("tbody")).toContainText("Más de 1 h sin actualizar");
+  await page.getByRole("button", { name: "Mostrar también las desactualizadas" }).click();
+  await expect(page.locator(".map-number")).toHaveCount(1);
+  await page.getByRole("checkbox", { name: /Ocultar en el mapa/ }).check();
+  await expect(page.locator(".map-number")).toHaveCount(0);
+  state.mapReadings.set(0, { age_seconds: 60 });
+  await page.clock.runFor(60000);
+  await expect(page.locator(".map-number")).toHaveCount(1);
+  await expect(page.locator("tbody tr")).not.toHaveClass(/outdated-row/);
+  await expect(page.locator(".empty-map")).toHaveCount(0);
+});
+
 test("escritorio: filtros, variables, ficha, vuelta, URL, orden y ausencia", async ({
   page,
 }) => {
@@ -60,6 +127,9 @@ test("móvil 390: filtros plegables, panel inferior, teclado y sin desbordamient
   await page.goto("/");
   await expect(page.locator(".filter-panel")).not.toHaveAttribute("open", "");
   await page.locator(".filter-panel summary").click();
+  await expect(page.getByRole("checkbox", { name: /Ocultar en el mapa/ })).toBeChecked();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  await page.screenshot({ path: "test-results/mobile-age-filter.png", fullPage: false });
   await page.getByLabel("Provincia", { exact: true }).selectOption("05");
   await page.locator(".filter-panel summary").click();
   await page.locator("tbody .station-name").first().click();

@@ -210,6 +210,19 @@ export function age(value: Reading) {
       ? `${Math.floor(min / 60)} h ${min % 60} min`
       : `${Math.floor(min / 1440)} días`;
 }
+// Observation age comes from the API, never from the collection timestamp.
+export function isRecentMapReading(reading: Reading | null) {
+  return (
+    reading != null &&
+    reading.value != null && Number.isFinite(reading.value) &&
+    ["fresh", "stale"].includes(reading.freshness) &&
+    Number.isFinite(reading.age_seconds) &&
+    reading.age_seconds >= 0 && reading.age_seconds <= 3600
+  );
+}
+export function isOldMapReading(reading: Reading | null) {
+  return reading != null && reading.age_seconds > 3600;
+}
 export function period(value: Reading) {
   if (value.period_basis === "provider_day_timezone_unknown")
     return "Diario reportado · horario de reinicio desconocido; no comparable";

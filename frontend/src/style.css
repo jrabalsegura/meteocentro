@@ -270,6 +270,26 @@ main {
   grid-template-columns: minmax(250px, 1.8fr) repeat(3, minmax(140px, 1fr));
   gap: 16px;
 }
+.map-age-filter {
+  grid-column: 1 / -1;
+}
+.map-age-filter label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.map-age-filter input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--purple);
+}
+.map-age-filter small {
+  display: block;
+  margin: 5px 0 0 26px;
+  color: var(--muted);
+}
 .summary-strip {
   display: flex;
   align-items: center;
@@ -624,6 +644,16 @@ td:first-child a {
   color: #815b16;
 }
 .selected-row {
+  background: #f4f1fb;
+}
+.outdated-row {
+  background: #fffaf0;
+}
+.outdated-row .station-name {
+  border-left: 3px solid #ad771c;
+  padding-left: 7px;
+}
+.outdated-row.selected-row {
   background: #f4f1fb;
 }
 .pagination {
@@ -1003,7 +1033,7 @@ footer div {
   .search-label {
     grid-column: 1/-1;
   }
-  .filter-grid label:last-child {
+  .filter-grid > label:last-of-type {
     grid-column: 1/-1;
   }
   .filter-panel:not([open]) .filter-grid {

@@ -10,11 +10,20 @@ for (const width of [1440, 390]) {
     await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(2);
     await expect(page.locator(".map-marker-leader")).toHaveCount(2);
     await expect(page.locator(".map-number.cluster")).toHaveCount(0);
-    const first = await page.locator(".map-number").nth(0).boundingBox();
-    const second = await page.locator(".map-number").nth(1).boundingBox();
-    expect(first!.x + first!.width).toBeLessThan(second!.x);
-    expect(first!.x).toBeGreaterThan(0);
-    expect(second!.x + second!.width).toBeLessThan(width);
+    // MapLibre can redraw between two separate boundingBox calls during load.
+    // Read both rectangles together and wait for the actual rendered geometry.
+    await expect(async () => {
+      const boxes = await page.locator(".map-number").evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().toJSON()),
+      );
+      expect(boxes).toHaveLength(2);
+      const [first, second] = boxes;
+      expect(first.width).toBeGreaterThan(0);
+      expect(second.width).toBeGreaterThan(0);
+      expect(first.x + first.width).toBeLessThan(second.x);
+      expect(first.x).toBeGreaterThan(0);
+      expect(second.x + second.width).toBeLessThan(width);
+    }).toPass({ timeout: 5000 });
     const view = new URL(page.url()).searchParams.get("view")!.split(",").map(Number);
     expect(view[0]).toBeCloseTo(-3.516667, 5);
     expect(view[1]).toBeCloseTo(40.35, 5);
@@ -26,6 +35,11 @@ for (const width of [1440, 390]) {
       await page.keyboard.press("Enter");
       await expect(page.locator(".station-panel")).toContainText(`SINTÉTICA 000${i}`);
       await page.getByRole("button", { name: "Cerrar ficha" }).click();
+      await expect(page.locator(".station-panel")).toHaveCount(0);
+      // Closing restores focus on the next frame; wait before choosing another marker.
+      await expect(width === 390
+        ? page.locator(".filter-panel summary")
+        : page.getByRole("searchbox", { name: "Buscar estación" })).toBeFocused();
     }
     await page.getByRole("button", { name: "Humedad", exact: false }).click();
     await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(2);
@@ -101,9 +115,16 @@ test("aprovecha el espacio vertical y el zoom libera grupos rodeados de estacion
   state.excluded.add("00000000-0000-4000-8000-000000000005");
   await page.goto("/?view=-3.516667,40.35,10");
   await expect(page.locator(".map-number:not(.cluster)")).toHaveCount(4);
-  const top = await page.locator(".map-number").nth(0).boundingBox();
-  const bottom = await page.locator(".map-number").nth(1).boundingBox();
-  expect(top!.y + top!.height).toBeLessThan(bottom!.y);
+  await expect(async () => {
+    const boxes = await page.locator(".map-number").evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().toJSON()),
+    );
+    expect(boxes).toHaveLength(4);
+    const [top, bottom] = boxes;
+    expect(top.height).toBeGreaterThan(0);
+    expect(bottom.height).toBeGreaterThan(0);
+    expect(top.y + top.height).toBeLessThan(bottom.y);
+  }).toPass({ timeout: 5000 });
   state.excluded.clear();
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   const cluster = page.getByRole("button", { name: "Ampliar grupo de 2 estaciones" });

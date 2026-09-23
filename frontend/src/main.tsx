@@ -65,6 +65,10 @@ function App() {
   const loadedSelection = useRef<string | null>(null);
   const focusedSelection = useRef("");
   const initialView = useRef(viewFrom(route.params));
+  const searchTerm = (route.params.get("q") ?? "").trim();
+  const lastSearchTerm = useRef(searchTerm);
+  const pendingSearchFocus = useRef(!!searchTerm && !initialView.current);
+  const [searchFocus, setSearchFocus] = useState<View | null>(null);
   const metric = metricInfo[route.params.get("metric") ?? ""]
     ? route.params.get("metric")!
     : "temperature";
@@ -246,6 +250,20 @@ function App() {
       }),
     [stations, sort],
   );
+  useEffect(() => {
+    if (lastSearchTerm.current !== searchTerm) {
+      lastSearchTerm.current = searchTerm;
+      pendingSearchFocus.current = !!searchTerm;
+      setSearchFocus(null);
+    }
+    // Wait for this search's response, including when searching from the table.
+    // Refreshing readings or changing variables must not steal the user's view.
+    if (!pendingSearchFocus.current || !data || isTable || isHistory) return;
+    pendingSearchFocus.current = false;
+    const first = sorted[0];
+    if (first?.longitude == null || first.latitude == null) return;
+    setSearchFocus({ lng: first.longitude, lat: first.latitude, zoom: 12 });
+  }, [searchTerm, data, sorted, isTable, isHistory]);
   const effectiveSource = detail?.sources.some((s) => s.id === chosenSource)
     ? chosenSource
     : "";
@@ -584,6 +602,8 @@ function App() {
                 metric={metric}
                 selected={selectedId}
                 initialView={initialView.current}
+                searchFocus={searchFocus}
+                onSearchFocus={() => setSearchFocus(null)}
                 onView={setView}
                 onSelect={choose}
               />

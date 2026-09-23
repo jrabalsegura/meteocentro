@@ -91,6 +91,8 @@ export default function WeatherMap({
   metric,
   selected,
   initialView,
+  searchFocus,
+  onSearchFocus,
   onView,
   onSelect,
 }: {
@@ -98,6 +100,8 @@ export default function WeatherMap({
   metric: string;
   selected: string | null;
   initialView: View | null;
+  searchFocus?: View | null;
+  onSearchFocus?: () => void;
   onView: (view: View) => void;
   onSelect: (id: string) => void;
 }) {
@@ -110,8 +114,8 @@ export default function WeatherMap({
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [revision, setRevision] = useState(0);
-  const callbacks = useRef({ onView, onSelect });
-  callbacks.current = { onView, onSelect };
+  const callbacks = useRef({ onView, onSelect, onSearchFocus });
+  callbacks.current = { onView, onSelect, onSearchFocus };
   const firstView = useRef(initialView ?? DEFAULT_VIEW);
   useEffect(() => {
     let instance: LibreMap;
@@ -190,6 +194,15 @@ export default function WeatherMap({
       return;
     }
   }, []);
+  useEffect(() => {
+    if (!map.current || !ready || !searchFocus) return;
+    map.current.easeTo({
+      center: [searchFocus.lng, searchFocus.lat],
+      zoom: searchFocus.zoom,
+      duration: 450,
+    });
+    callbacks.current.onSearchFocus?.();
+  }, [searchFocus, ready]);
   useEffect(() => () => {
     groupPopup.current?.remove();
     groupPopup.current = null;

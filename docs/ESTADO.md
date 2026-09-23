@@ -2,7 +2,7 @@
 
 Última actualización: 23 de septiembre de 2026.
 
-**Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 23-9-2026 se actualiza al commit `ed67c0986b6b84c3b42f5e4755e7c9ed1b7eec10`: mapa sin leyendas superpuestas, resumen diario inmediato y listado sincronizado con los filtros. Se conservan el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
+**Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 23-9-2026 se actualiza al commit `0b8ff7b05bc5b352a0cb7e40aa2365189b823777`: filtro de una hora activado por defecto en el mapa y estaciones antiguas señaladas en el listado, conservando el resumen diario y el mapa sin leyendas superpuestas. Se conservan el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
 
@@ -14,7 +14,11 @@
 
 **Preparación remota:** inspección SSH autorizada: cuatro unidades Meteocentro activas, DB/API/web saludables, rootless Podman 4.9.3, puerto 8089, volumen `meteocentro-db-data` y 23 GiB libres. Antes del cambio, el worker está vivo y sin trabajos atrasados; Meteoclimatic tiene datos recientes, mientras AEMET responde sin observaciones nuevas desde las 08:00 UTC. Es un estado previo del proveedor, no un fallo de esta interfaz. Se conserva el vhost HTTPS y la configuración privada existentes.
 
-**Siguiente paso:** publicar el commit, comprobar CI, construir la versión exacta desde GitHub y aplicar mediante `ops.py` en `remote`; registrar el resultado real después.
+**Despliegue real:** commit `0b8ff7b05bc5b352a0cb7e40aa2365189b823777`, publicado en [PR #10](https://github.com/jrabalsegura/meteocentro/pull/10). [CI del código desplegado](https://github.com/jrabalsegura/meteocentro/actions/runs/35874180148) correcto en backend, frontend y ensayo de contenedores/persistencia; también correctos los seis checks combinados de push/PR antes de aplicar. Construcción exacta en `remote`, con normalización verificada del prefijo `sha256:` de los IDs de Podman 4.9.3. Comparados los Quadlet: solo cambian las imágenes de API/worker/web. Aplicación correcta con `ops.py`, sin nuevas migraciones.
+
+**Verificación posterior:** smoke HTTP local y HTTPS satisfactorio, incluidas rutas SPA y protección de API/CSV/gestión. Cuatro unidades activas; PostgreSQL, API y web saludables. Antes/después: **3.010 observaciones**, primera del 22-9-2026 19:00 UTC y última del 23-9-2026 14:13 UTC, **101 estaciones y 0 exclusiones**; volumen `meteocentro-db-data` y esquema `0006_operations` conservados. Huella del vhost Nginx idéntica. Desde el Mac, HTTPS 200 y bundle `index-D2BbL64X.js` idéntico byte a byte al compilado y probado localmente. El navegador muestra el acceso privado sin avisos TLS; no se prueba un recorrido autenticado de producción porque no había sesión iniciada. Worker vivo y sin tareas vencidas; Meteoclimatic reciente y AEMET continúa con el aviso previo de respuestas sin datos nuevos. No se fuerzan consultas a proveedores.
+
+**Siguiente paso:** uso normal del filtro y seguimiento ordinario de la ingesta; el aviso previo de AEMET depende de recibir observaciones nuevas.
 
 ## Mejora de mapa y resumen inmediato — 23 de septiembre de 2026
 

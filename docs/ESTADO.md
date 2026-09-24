@@ -1,10 +1,22 @@
 # Estado del desarrollo
 
-Última actualización: 23 de septiembre de 2026.
+Última actualización: 24 de septiembre de 2026.
 
 **Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 23-9-2026 se actualiza al commit `31d4bbfe983bd3243408d7575e77a5085ae8beaa`: la búsqueda centra el mapa en el primer resultado con zoom moderado 12. Se conservan la separación de marcadores según espacio disponible, el filtro de una hora, el resumen diario, la vista inicial de Madrid, el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
+
+## Sesión anual y horas aproximadas de extremos — 24 de septiembre de 2026
+
+**Cambios solicitados:** duración por defecto y máxima de sesión de 8.760 horas (365 días), tanto en cookie como en caducidad absoluta del servidor. Ejemplos y Compose actualizados; las sesiones ya emitidas mantienen su caducidad hasta volver a entrar. La consulta de sesión no prolonga su duración y se conservan revocación, CSRF y cookies seguras. El usuario retira la petición de recuperación por correo: no se añade SMTP ni se cambia ninguna cuenta.
+
+**Mínima y máxima:** se conservan los valores actuales (reportados por el proveedor cuando existen y del archivo en los demás casos). Cada extremo muestra su propia `minimum_at`/`maximum_at` del archivo civil de Madrid de la misma estación y origen, como **«Hora aprox.»**, incluso si el valor archivado difiere del reportado, según petición expresa. No se usa la hora del último informe, no se mezclan redes y no se infiere una hora si falta archivo o hay canales ambiguos. Cobertura parcial visible. La lluvia conserva la hora de actualización y su semántica de contador. No hay cambios de ingesta, cálculo de históricos, esquema, dependencias ni vista inicial.
+
+**Validación local:** TypeScript/Vite, Ruff y `git diff --check` correctos. **178 pruebas de backend correctas** sobre PostgreSQL 17 temporal en UTF-8, incluidas duración de cookie/servidor, límite anual y caducidad sin renovación implícita; se refuerzan horas distintas de extremos en un día con cambio de hora. La primera ejecución no llegó a las pruebas de DB por la codificación SQL_ASCII de la base temporal; corregida a UTF-8 y repetida completa. Navegador: 26 recorridos existentes correctos y uno optativo omitido; los dos nuevos fallaron inicialmente solo por el cero del mes en el formato de fecha de Chrome. Corregida la aserción de formato, **ambos recorridos nuevos pasan** a 1.440 y 390 px: valores reportados intactos, horas independientes, mismo origen, cobertura y ausencia de histórico. Captura móvil inspeccionada sin desbordamiento. Fixtures meteorológicos sintéticos, sin consultas externas.
+
+**Preparación remota:** inspección por SSH de solo lectura: cuatro servicios activos, worker vivo, ambas redes recientes, puerto 8089, 23 GiB libres, esquema `0006_operations`, una cuenta habilitada y 20.803 observaciones en el momento del inventario. Se actualizará exclusivamente `SESSION_HOURS` de la configuración privada y las imágenes de la aplicación; se conservarán PostgreSQL, volumen, históricos, certificados y Nginx. Existe una modificación documental previa de otra tarea en este archivo, que se preserva fuera del commit de esta entrega.
+
+**Siguiente paso:** publicar el commit y verificar CI, construir imágenes inmutables y desplegar manualmente con `ops.py`; comprobar HTTPS, persistencia, configuración anual y ejemplos reales de horas de extremos.
 
 ## Encuadre automático de búsquedas — 23 de septiembre de 2026
 

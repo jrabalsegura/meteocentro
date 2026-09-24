@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     private_read: bool = True
     app_origin: str = "http://localhost:5173"
-    session_hours: int = Field(default=12, ge=1, le=48)
+    session_hours: int = Field(default=8760, ge=1, le=8760)
     aemet_enabled: bool = True
     aemet_api_key: SecretStr | None = None
     aemet_poll_seconds: int = Field(default=900, ge=900)

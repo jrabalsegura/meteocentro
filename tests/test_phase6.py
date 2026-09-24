@@ -207,6 +207,42 @@ def test_csrf_and_origin_block_admin_mutations(db, admin, headers):
     assert db.scalar(select(func.count()).select_from(AuditEvent)) == 0
 
 
+def test_one_year_session_cookie_and_absolute_expiry(db, admin, monkeypatch):
+    from meteocentro import auth
+
+    monkeypatch.delenv("SESSION_HOURS", raising=False)
+    settings = Settings(
+        database_url="postgresql+psycopg://test@localhost/test",
+        _env_file=None,
+    )
+    assert settings.session_hours == 365 * 24
+    with pytest.raises(ValueError):
+        Settings(database_url=settings.database_url, session_hours=8761, _env_file=None)
+    monkeypatch.setattr(get_settings(), "session_hours", settings.session_hours)
+    client, _ = admin
+    before = datetime.now(UTC)
+    response = client.post(
+        "/api/v1/auth/login", json={"username": "owner", "password": PASSWORD}
+    )
+    assert response.status_code == 200
+    assert "Max-Age=31536000" in response.headers["set-cookie"]
+    expiry = datetime.fromisoformat(response.json()["expires_at"])
+    assert (
+        before + timedelta(days=365)
+        <= expiry
+        <= datetime.now(UTC) + timedelta(days=365)
+    )
+    stored = db.scalar(select(AdminSession).where(AdminSession.revoked_at.is_(None)))
+    assert stored.expires_at == expiry
+    # Reading the session does not silently renew its absolute lifetime.
+    monkeypatch.setattr(auth, "db_now", lambda _db: expiry - timedelta(seconds=1))
+    info = client.get("/api/v1/auth/session").json()
+    assert info["authenticated"] is True
+    assert datetime.fromisoformat(info["expires_at"]) == expiry
+    monkeypatch.setattr(auth, "db_now", lambda _db: expiry)
+    assert client.get("/api/v1/auth/session").json()["authenticated"] is False
+
+
 def test_cookies_rotation_expiry_revocation_and_disabled_user(db, admin, monkeypatch):
     client, user = admin
     old_token = client.cookies.get(cookie_name())

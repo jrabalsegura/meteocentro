@@ -48,6 +48,8 @@ export type DaySummary = {
   external_id: string;
   minimum: number | null;
   maximum: number | null;
+  minimum_at: string | null;
+  maximum_at: string | null;
   total: number | null;
   coverage: number;
   partial: boolean;

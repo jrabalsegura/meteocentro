@@ -342,6 +342,8 @@ def test_today_summary_keeps_gaps_zero_and_rain_intervals(db, catalog):
     temperature = next(item for item in summaries if item["metric"] == "temperature")
     rain = next(item for item in summaries if item["metric"] == "rain")
     assert temperature["minimum"] == 0 and temperature["maximum"] == 15
+    assert temperature["minimum_at"] == (start + timedelta(hours=1)).isoformat()
+    assert temperature["maximum_at"] == (start + timedelta(hours=2)).isoformat()
     assert temperature["coverage"] == pytest.approx(2 / 6)
     assert rain["total"] == 4
     assert rain["coverage"] == pytest.approx(2 / 6)

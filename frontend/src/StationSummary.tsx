@@ -32,23 +32,30 @@ export default function StationSummary({
             madridDay(r.observed_at) === today &&
             new Date(r.observed_at) <= new Date(station.generated_at),
           );
-          const origin = source || readings.find((r) => r.metric === metric && r.value != null)?.source_id;
+          const origin = source || report?.source_id || readings.find((r) => r.metric === metric && r.value != null)?.source_id;
           const candidates = (station.day_summaries ?? []).filter((r) =>
             r.source_id === origin && r.metric === metric && r.unit === unit &&
             madridDay(r.period_start) === today,
           );
           // Ambiguous channels must never be silently combined.
           const local = candidates.length === 1 ? candidates[0] : undefined;
+          // Preserve reported values; approximate occurrence times from the same
+          // source's archived extrema, never from the report's publication time.
           const value = report ? report.value : local?.[field];
           const provider = report?.provider ?? local?.provider;
-          const observed = report?.observed_at ?? local?.observed_at;
+          const observed = metric === "temperature"
+            ? local?.[field === "minimum" ? "minimum_at" : "maximum_at"]
+            : report?.observed_at ?? local?.observed_at;
           return (
             <article className="daily-stat" key={field}>
               <h4>{label}</h4>
               <strong>{number(value)} <span>{unit}</span></strong>
               <small>{value == null ? "Sin datos de hoy" : report ? "Reportada" : "Archivo de hoy"}</small>
-              {provider && value != null && <small>{provider.toUpperCase()} · {date(observed)}</small>}
-              {!report && local && value != null && (
+              {provider && value != null && <small>{provider.toUpperCase()}</small>}
+              {value != null && <small>{observed
+                ? `${metric === "temperature" ? "Hora aprox." : "Actualizada"}: ${date(observed)}`
+                : "Hora del extremo no disponible"}</small>}
+              {local && value != null && (metric === "temperature" || !report) && (
                 <small>{local.partial ? "Parcial" : "Hasta ahora"} · cobertura {Math.round(local.coverage * 100)} %</small>
               )}
             </article>
@@ -56,6 +63,7 @@ export default function StationSummary({
         })}
       </div>
       <p className="daily-context">
+        Horas aproximadas de mínima y máxima según nuestro archivo de hoy de la misma fuente, en hora de Madrid. Pueden diferir del instante real del extremo.{" "}
         {readings.some((r) => metrics.some((m) => m.reported === r.metric) &&
           r.value != null && madridDay(r.observed_at) === today &&
           new Date(r.observed_at) <= new Date(station.generated_at))

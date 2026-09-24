@@ -4,7 +4,7 @@ Implementada el 21 de septiembre de 2026. El acceso está en `/gestion`; la lect
 
 ## Preparación y acceso
 
-Configurar `PRIVATE_READ=true`, `APP_ORIGIN` con el origen exacto usado por el navegador (esquema, host y puerto, sin barra final) y `SESSION_HOURS=12`. El ejemplo usa `http://localhost:5173`; si se abre mediante `127.0.0.1`, configurar ese origen. En producción, `ENVIRONMENT=production` exige HTTPS y activa la cookie `__Host-meteocentro`, `Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/`, sin `Domain`. En desarrollo se permite HTTP local. La API nunca recibe la clave AEMET desde Compose; solo el worker la necesita.
+Configurar `PRIVATE_READ=true`, `APP_ORIGIN` con el origen exacto usado por el navegador (esquema, host y puerto, sin barra final) y `SESSION_HOURS=8760` (365 días, desde el acceso; máximo admitido de un año). El ejemplo usa `http://localhost:5173`; si se abre mediante `127.0.0.1`, configurar ese origen. En producción, `ENVIRONMENT=production` exige HTTPS y activa la cookie `__Host-meteocentro`, `Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/`, sin `Domain`. En desarrollo se permite HTTP local. La API nunca recibe la clave AEMET desde Compose; solo el worker la necesita.
 
 Después de aplicar la migración y arrancar la imagen nueva de la API, crear la cuenta en una terminal interactiva:
 
@@ -13,6 +13,8 @@ docker compose exec api python -m meteocentro.admin_cli create propietario
 ```
 
 La contraseña se introduce dos veces sin eco, requiere entre 15 y 1.024 caracteres y nunca se acepta como argumento de la línea de comandos. El comando rechaza entrada sin terminal. Para recuperación, `password propietario` cambia la contraseña y revoca sus sesiones; `revoke propietario` revoca todas sin cambiarla. Fuera de Compose se usa el mismo módulo con `DATABASE_URL` en el entorno. No sobrescribir un `.env` existente con el ejemplo.
+
+Las sesiones nuevas duran un año; las ya emitidas conservan su caducidad y requieren volver a entrar para obtener la duración nueva. La consulta periódica de sesión no amplía la caducidad. No se configura recuperación por correo, por decisión del usuario del 24-9-2026.
 
 Las sesiones son tokens aleatorios de 256 bits; PostgreSQL conserva únicamente su hash SHA-256, usuario, caducidad absoluta y revocación. La contraseña usa scrypt con sal aleatoria, N=131072, r=8 y p=1, conforme a la [guía de almacenamiento de contraseñas de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). No se añadieron dependencias: se utiliza `hashlib` de Python.
 

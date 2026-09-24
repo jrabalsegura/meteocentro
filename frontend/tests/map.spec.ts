@@ -497,7 +497,7 @@ test("resumen diario visible en móvil: cero, cobertura y ausencia de lluvia", a
   const state = await mockApi(page);
   state.current.day_summaries = [{
     metric: "temperature", unit: "°C", source_id: "source-0", provider: "aemet", external_id: "SYN-0",
-    minimum: 0, maximum: 18, total: null, coverage: .5, partial: true,
+    minimum: 0, maximum: 18, minimum_at: "2026-09-19T00:30:00Z", maximum_at: "2026-09-19T06:30:00Z", total: null, coverage: .5, partial: true,
     period_start: "2026-09-18T22:00:00Z", period_end: "2026-09-19T08:00:00Z", observed_at: "2026-09-19T07:00:00Z",
   }];
   await page.goto("/?station=00000000-0000-4000-8000-000000000000");
@@ -505,6 +505,9 @@ test("resumen diario visible en móvil: cero, cobertura y ausencia de lluvia", a
   await expect(summary).toBeVisible();
   await expect(summary.locator(".daily-stat").nth(0)).toContainText("0,0 °C");
   await expect(summary.locator(".daily-stat").nth(1)).toContainText("18,0 °C");
+  await expect(summary.locator(".daily-stat").nth(0)).toContainText("02:30");
+  await expect(summary.locator(".daily-stat").nth(1)).toContainText("08:30");
+  await expect(summary.locator(".daily-stat").nth(0)).not.toContainText("09:00");
   await expect(summary.locator(".daily-stat").nth(0)).toContainText("Parcial · cobertura 50 %");
   await expect(summary.locator(".daily-stat").nth(2)).toContainText("Sin datos de hoy");
   const panel = await page.locator(".station-panel").boundingBox();
@@ -535,6 +538,7 @@ test("diarios reportados respetan fuente, fecha y contador sin inventar día civ
   const summary = page.getByRole("region", { name: "Resumen del día" });
   await expect(summary).toContainText("4,0 °C");
   await expect(summary).toContainText("23,0 °C");
+  await expect(summary.getByText("Hora del extremo no disponible", { exact: true })).toHaveCount(2);
   await expect(summary).toContainText("0,0 mm");
   await expect(summary).toContainText("horario de reinicio desconocido");
   await page.getByLabel("Fuente del dato", { exact: true }).selectOption("source-0");
@@ -544,3 +548,47 @@ test("diarios reportados respetan fuente, fecha y contador sin inventar día civ
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await expect(summary.locator(".daily-stat").filter({ hasText: "Sin datos de hoy" })).toHaveCount(3);
 });
+
+for (const width of [1440, 390]) {
+  test(`valores reportados con horas aproximadas del archivo de su propia fuente (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    const { reading } = await import("./fixtures");
+    const state = await mockApi(page);
+    state.current.readings = [
+      reading(0),
+      ...["temperature_daily_min", "temperature_daily_max"].map((metric, i) => ({
+        ...reading(0), metric, value: [4, 23][i], kind: i === 0 ? "daily_minimum" : "daily_maximum",
+        period_basis: "provider_day_timezone_unknown", provider: "meteoclimatic", source_id: "meteo-0",
+      })),
+    ];
+    state.current.day_summaries = [
+      { metric: "temperature", unit: "°C", source_id: "source-0", provider: "aemet", external_id: "SYN-0",
+        minimum: 0, maximum: 18, minimum_at: "2026-09-19T01:00:00Z", maximum_at: "2026-09-19T05:00:00Z",
+        total: null, coverage: .5, partial: true, period_start: "2026-09-18T22:00:00Z",
+        period_end: "2026-09-19T08:00:00Z", observed_at: "2026-09-19T07:00:00Z" },
+      { metric: "temperature", unit: "°C", source_id: "meteo-0", provider: "meteoclimatic", external_id: "SYN-M0",
+        minimum: 5, maximum: 22, minimum_at: "2026-09-19T00:30:00Z", maximum_at: "2026-09-19T06:30:00Z",
+        total: null, coverage: .4, partial: true, period_start: "2026-09-18T22:00:00Z",
+        period_end: "2026-09-19T08:00:00Z", observed_at: "2026-09-19T07:00:00Z" },
+    ];
+    // Automatic selection prefers the report; its hours must not come from AEMET.
+    await page.goto("/?station=00000000-0000-4000-8000-000000000000");
+    const summary = page.getByRole("region", { name: "Resumen del día" });
+    const low = summary.locator(".daily-stat").nth(0);
+    const high = summary.locator(".daily-stat").nth(1);
+    await expect(low).toContainText("4,0 °C");
+    await expect(high).toContainText("23,0 °C");
+    await expect(low).toContainText(/Hora aprox\.: 19\/0?9, 02:30/);
+    await expect(high).toContainText(/Hora aprox\.: 19\/0?9, 08:30/);
+    await expect(low).toContainText("Parcial · cobertura 40 %");
+    await expect(low).not.toContainText("5,0 °C");
+    await expect(high).not.toContainText("22,0 °C");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    await page.screenshot({ path: `test-results/extreme-hours-${width}.png` });
+    // No archive for this source: never use another source's hour or latest report time.
+    state.current.day_summaries = state.current.day_summaries.slice(0, 1);
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(summary.getByText("Hora del extremo no disponible", { exact: true })).toHaveCount(2);
+    await expect(low).toContainText("4,0 °C");
+  });
+}

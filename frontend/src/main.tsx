@@ -18,6 +18,9 @@ import {
   type MapPage,
   type Provider,
   type Reading,
+  type Station,
+  clock,
+  type DayValue,
 } from "./data";
 import type { View } from "./WeatherMap";
 import "./style.css";
@@ -73,6 +76,8 @@ function App() {
     ? route.params.get("metric")!
     : "temperature";
   const info = metricInfo[metric];
+  // Daily extremes exist for these variables; rain keeps its own interval semantics.
+  const hasDay = ["temperature", "humidity", "wind_speed"].includes(metric);
   const isHistory = route.path === "/historicos" || route.path === "/diarios";
   const isTable = route.path === "/estaciones";
   const detailId = route.path.startsWith("/estaciones/")
@@ -228,18 +233,16 @@ function App() {
   const sorted = useMemo(
     () =>
       [...stations].sort((a, b) => {
-        const av =
+        const key = (s: Station) =>
           sort.key === "name"
-            ? a.name
+            ? s.name
             : sort.key === "value"
-              ? (a.reading?.value ?? null)
-              : (a.reading?.observed_at ?? null);
-        const bv =
-          sort.key === "name"
-            ? b.name
-            : sort.key === "value"
-              ? (b.reading?.value ?? null)
-              : (b.reading?.observed_at ?? null);
+              ? (s.reading?.value ?? null)
+              : sort.key === "minimum" || sort.key === "maximum"
+                ? (s.day?.[sort.key].value ?? null)
+                : (s.reading?.observed_at ?? null);
+        const av = key(a);
+        const bv = key(b);
         if (av == null) return bv == null ? 0 : 1;
         if (bv == null) return -1;
         const order =
@@ -752,7 +755,7 @@ function App() {
                       </p>
                       <p>
                         {detail.latitude != null && detail.longitude != null
-                          ? `${detail.latitude.toFixed(4)}° N, ${detail.longitude.toFixed(4)}° E`
+                          ? coordinates(detail.latitude, detail.longitude)
                           : "Coordenadas no disponibles"}
                       </p>
                       {detail.sources.map((s) => (
@@ -908,6 +911,12 @@ function App() {
                   {[
                     ["name", "Estación"],
                     ["value", `${info.short} (${info.unit})`],
+                    ...(hasDay
+                      ? [
+                          ["minimum", "Mín. hoy"],
+                          ["maximum", "Máx. hoy"],
+                        ]
+                      : []),
                     ["time", "Observación · Madrid"],
                   ].map(([key, name]) => (
                     <th
@@ -989,6 +998,12 @@ function App() {
                         {number(station.reading?.value)}
                       </strong>
                     </td>
+                    {hasDay && (
+                      <>
+                        <DayCell value={station.day?.minimum} metric={metric} />
+                        <DayCell value={station.day?.maximum} metric={metric} />
+                      </>
+                    )}
                     <td>
                       {date(station.reading?.observed_at)}
                       <small>
@@ -1087,6 +1102,28 @@ function App() {
       </main>
     </>
   );
+}
+function DayCell({ value, metric }: { value?: DayValue; metric: string }) {
+  return (
+    <td
+      className="day-cell"
+      title={
+        value?.origin === "reported"
+          ? "Diario reportado por la fuente; hora aproximada según nuestro archivo"
+          : value?.value != null
+            ? "Según nuestro archivo de hoy de la misma fuente"
+            : "Sin archivo de hoy para esta fuente"
+      }
+    >
+      <strong style={{ color: color(value?.value, metric) }}>{number(value?.value)}</strong>
+      {value?.at && <small>{clock(value.at)}</small>}
+    </td>
+  );
+}
+function coordinates(latitude: number, longitude: number) {
+  const part = (value: number, positive: string, negative: string) =>
+    `${Math.abs(value).toFixed(4)}° ${value < 0 ? negative : positive}`;
+  return `${part(latitude, "N", "S")}, ${part(longitude, "E", "O")}`;
 }
 function ReadingMeta({ reading }: { reading: Reading }) {
   return (

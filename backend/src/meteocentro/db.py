@@ -19,7 +19,11 @@ def get_engine():
     )
 
 
+@lru_cache
+def session_factory():
+    return sessionmaker(bind=get_engine(), expire_on_commit=False)
+
+
 def get_session() -> Iterator[Session]:
-    factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
-    with factory() as session:
+    with session_factory()() as session:
         yield session

@@ -27,6 +27,8 @@ curl -fsS http://127.0.0.1:5173/health/ready
 docker compose exec api python -m meteocentro.admin_cli create propietario
 ```
 
+Equivalente con `make`: `make up`, `make admin ADMIN=propietario`, `make ps`, `make down`. `make check` ejecuta lint, pruebas (con un PostgreSQL desechable) y compilación web como la CI. Ver [CLAUDE.md](CLAUDE.md) para el flujo de trabajo con Claude Code.
+
 La pantalla local está en `http://localhost:5173/`, coincidente con `APP_ORIGIN` del ejemplo; OpenAPI autenticado en `/api/v1/docs`. Desde fase 6, la lectura es privada por defecto: crear el administrador desde una terminal y entrar en la web. La base nueva empieza vacía. Guía de acceso, exclusión y restauración en [ADMINISTRACION_FASE_6.md](docs/ADMINISTRACION_FASE_6.md). `docker compose down` detiene los contenedores y conserva el volumen; `docker compose down -v` borraría la base local y **no** forma parte del procedimiento ordinario. La ingestión se activa por separado mediante el perfil `ingestion`, pasando `AEMET_API_KEY` únicamente al worker. Véanse el [contrato de API y datos](docs/CONTRATOS_FASE_1.md) y la [operación de fase 2](docs/OPERACION_FASE_2.md).
 
 ## Mapa y estaciones

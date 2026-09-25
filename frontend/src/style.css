@@ -652,6 +652,14 @@ td:first-child a {
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
+.day-cell {
+  white-space: nowrap;
+}
+.day-cell strong {
+  font-size: 1rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
 .status-tag {
   display: inline-block;
   font-size: 0.68rem;

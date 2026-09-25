@@ -42,9 +42,11 @@ for service in ["backend", "web"]:
         cwd=ROOT,
         check=True,
     )
-    images[service] = subprocess.check_output(
+    image_id = subprocess.check_output(
         [a.engine, "image", "inspect", tag, "--format", "{{.Id}}"], text=True
     ).strip()
+    # Podman omits the algorithm prefix that Docker includes; manifests require it.
+    images[service] = image_id if image_id.startswith("sha256:") else "sha256:" + image_id
 a.output.parent.mkdir(parents=True, exist_ok=True)
 a.output.write_text(json.dumps(images, indent=2) + "\n")
 print(a.output.resolve())

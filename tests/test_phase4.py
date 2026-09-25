@@ -279,8 +279,9 @@ def test_no_n_plus_one_and_future_or_invalid_not_recent(engine, catalog):
         result = client.get("/api/v1/map").json()
     finally:
         event.remove(engine, "before_cursor_execute", record)
-    # One catalogue-version read plus one batched projection, independent of population.
-    assert len(statements) == 2
+    # Catalogue version, one batched projection and two batched day-extreme reads,
+    # independent of population.
+    assert len(statements) == 4
     assert result["extremes"]["eligible"] == 10
     assert result["counts"]["unknown"] == 2
 
@@ -377,3 +378,106 @@ def test_today_summary_does_not_use_yesterday_future_or_unknown_cadence(db, cata
     assert (
         day_summaries(db, station.id, original.observed_at - timedelta(seconds=1)) == []
     )
+
+
+def test_list_day_extremes_follow_card_rules(db, catalog):
+    from meteocentro.history import MADRID, VERSION, civil_window
+    from meteocentro.models import DailySummary
+
+    client, add, _ = catalog
+    now = datetime.now(UTC)
+    start, _ = civil_window(now.astimezone(MADRID).date())
+    if now - start < timedelta(minutes=30):
+        pytest.skip("needs a reading inside today's civil day")
+
+    def summary(source, metric, unit, low, high):
+        db.add(
+            DailySummary(
+                source_id=source.id,
+                product="synthetic",
+                period_start=start,
+                period_end=start + timedelta(minutes=10),
+                period_basis="Europe/Madrid",
+                method=VERSION,
+                channel=f"{metric}-channel",
+                coverage=0.5,
+                metrics={
+                    metric: {
+                        "unit": unit,
+                        "kind": "instant",
+                        "minimum": low,
+                        "maximum": high,
+                        "minimum_at": start.isoformat(),
+                        "maximum_at": (start + timedelta(minutes=5)).isoformat(),
+                        "coverage": 0.5,
+                        "partial": True,
+                    }
+                },
+                fetched_at=now,
+            )
+        )
+
+    _, archive, _ = add(name="A archivo", value=22)
+    summary(archive, "temperature", "°C", 10, 20)
+    _, reported, _ = add(name="B reportada", provider=1, value=15)
+    summary(reported, "temperature", "°C", 12, 18)
+    observation = Observation(
+        source_id=reported.id,
+        product="synthetic_daily",
+        observed_at=now - timedelta(minutes=5),
+        fetched_at=now,
+        metrics={
+            "temperature_daily_min": {
+                "value": 9,
+                "unit": "°C",
+                "kind": "daily_minimum",
+            },
+            "temperature_daily_max": {
+                "value": 25,
+                "unit": "°C",
+                "kind": "daily_maximum",
+            },
+        },
+        quality={},
+        payload_hash="1" * 64,
+        normalizer_version="phase4-fixture",
+    )
+    db.add(observation)
+    db.flush()
+    for name in ("temperature_daily_min", "temperature_daily_max"):
+        db.add(
+            LatestObservation(
+                source_id=reported.id,
+                metric=name,
+                observation_id=observation.id,
+                observed_at=observation.observed_at,
+            )
+        )
+    add(name="C sin archivo", value=17)
+    _, wind, _ = add(name="D viento", metric="wind_speed", unit="m/s", value=5)
+    summary(wind, "wind_speed", "m/s", 1, 10)
+    db.commit()
+
+    days = {
+        i["name"]: i["day"]
+        for i in client.get("/api/v1/map?metric=temperature").json()["items"]
+    }
+    # The current reading extends the hourly archive of the same source.
+    assert days["A archivo"]["minimum"]["value"] == 10
+    assert days["A archivo"]["maximum"]["value"] == 22
+    assert days["A archivo"]["maximum"]["at"] != days["A archivo"]["minimum"]["at"]
+    # A provider-reported daily value wins over our archive, as in the station card.
+    assert days["B reportada"]["minimum"] == {
+        "value": 9,
+        "at": start.isoformat(),
+        "origin": "reported",
+    }
+    assert days["B reportada"]["maximum"]["value"] == 25
+    # Without archive or report, the current reading is not presented as an extreme.
+    assert days["C sin archivo"]["minimum"]["value"] is None
+    assert days["C sin archivo"]["maximum"]["value"] is None
+    item = client.get("/api/v1/map?metric=wind_speed").json()["items"]
+    day = next(i["day"] for i in item if i["name"] == "D viento")
+    assert day["minimum"]["value"] == pytest.approx(3.6)
+    assert day["maximum"]["value"] == pytest.approx(36)
+    assert "day" not in client.get("/api/v1/map?metric=rain").json()["items"][0]

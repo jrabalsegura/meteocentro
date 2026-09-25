@@ -6,7 +6,7 @@ from alembic import command
 from alembic.config import Config
 from meteocentro.api import app
 from meteocentro.config import get_settings
-from meteocentro.db import get_engine
+from meteocentro.db import get_engine, session_factory
 from meteocentro.models import Base
 from meteocentro.schema import EXPECTED_REVISION
 from sqlalchemy import create_engine, text
@@ -29,6 +29,7 @@ def engine():
     os.environ["PRIVATE_READ"] = "false"
     get_settings.cache_clear()
     get_engine.cache_clear()
+    session_factory.cache_clear()
     config = Config(str(ROOT / "backend/alembic.ini"))
     command.upgrade(config, "head")
     engine = create_engine(url)

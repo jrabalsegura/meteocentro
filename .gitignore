@@ -27,3 +27,4 @@ playwright-report/
 test-results/
 .DS_Store
 deploy/env/*.env
+.claude/settings.local.json

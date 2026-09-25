@@ -265,3 +265,66 @@ def test_public_routes_use_real_empty_queries_and_validate_range(db):
             ).status_code
             == 422
         )
+
+
+def test_station_list_freshness_is_batched_per_page(db):
+    from meteocentro.models import LatestObservation
+    from sqlalchemy import event
+
+    provider, _, _ = station_with_source(db)
+    provider.capabilities = {"stale_after_seconds": 3600}
+    now = datetime.now(UTC).replace(microsecond=0)
+    expected = {}
+    for index, (state, age, capabilities) in enumerate(
+        [
+            ("fresh", timedelta(minutes=5), {"current": True}),
+            ("stale", timedelta(hours=3), {"current": True}),
+            ("unknown", None, {"current": True}),
+            ("historical_only", None, {"daily_history": True}),
+        ]
+    ):
+        station = Station(
+            name=f"Lote {index}", province_code="28", moderation_status="active"
+        )
+        db.add(station)
+        db.flush()
+        source = StationSource(
+            provider_id=provider.id,
+            station_id=station.id,
+            external_id=f"BATCH{index}",
+            status="enabled",
+            capabilities=capabilities,
+        )
+        db.add(source)
+        db.flush()
+        if age is not None:
+            row = observation(source.id, now - age)
+            db.add(row)
+            db.flush()
+            db.add(
+                LatestObservation(
+                    source_id=source.id,
+                    metric="temperature",
+                    observation_id=row.id,
+                    observed_at=row.observed_at,
+                )
+            )
+        expected[str(station.id)] = state
+    db.commit()
+    statements = []
+
+    def count(*_):
+        statements.append(1)
+
+    event.listen(db.get_bind(), "before_cursor_execute", count)
+    try:
+        with client_for(db) as client:
+            items = client.get("/api/v1/stations", params={"limit": 100}).json()[
+                "items"
+            ]
+    finally:
+        event.remove(db.get_bind(), "before_cursor_execute", count)
+    states = {item["id"]: item["freshness"] for item in items}
+    assert {key: states[key] for key in expected} == expected
+    # Constant query count: page size must not multiply database round trips.
+    assert len(statements) <= 6

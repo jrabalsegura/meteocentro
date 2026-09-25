@@ -44,7 +44,12 @@ export function layoutMarkers(points: ProjectedStation[], width: number, height:
       const rows = Math.ceil(count / columns);
       // Avoid moving values far from their published locations to force a fit.
       if ((columns - 1) * 72 > 192 || (rows - 1) * 44 > 192) continue;
-      const spread = group.items.map((item, i) => {
+      // Keep geography readable: rows north→south, each row west→east.
+      const byNorth = [...group.items].sort((a, b) => a.y - b.y || a.x - b.x);
+      const ordered = Array.from({ length: rows }, (_, row) =>
+        byNorth.slice(row * columns, (row + 1) * columns).sort((a, b) => a.x - b.x || a.y - b.y),
+      ).flat();
+      const spread = ordered.map((item, i) => {
         const row = Math.floor(i / columns);
         const rowSize = Math.min(columns, count - row * columns);
         return {

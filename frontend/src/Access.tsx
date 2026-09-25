@@ -46,7 +46,8 @@ export async function request<T>(
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(15000),
   });
-  const data = await response.json();
+  // A proxy error page during a restart is HTML, not JSON.
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 401 && path !== "/auth/login")
       window.dispatchEvent(new Event("session-expired"));

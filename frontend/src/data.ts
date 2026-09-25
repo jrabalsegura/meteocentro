@@ -27,6 +27,18 @@ export type Source = {
   attribution: string;
   provider_status: string;
 };
+export type DayValue = {
+  value: number | null;
+  at: string | null;
+  origin: "reported" | "archive" | null;
+};
+export type DayExtremes = {
+  provider: string;
+  coverage: number | null;
+  partial: boolean;
+  minimum: DayValue;
+  maximum: DayValue;
+};
 export type Station = {
   id: string;
   name: string;
@@ -39,6 +51,7 @@ export type Station = {
   reading: Reading | null;
   freshness: string;
   fallback: boolean;
+  day?: DayExtremes | null;
 };
 export type DaySummary = {
   metric: string;
@@ -203,6 +216,15 @@ export function date(value: string | null | undefined) {
         timeZoneName: "short",
       }).format(new Date(value))
     : "Sin observación";
+}
+export function clock(value: string | null | undefined) {
+  return value
+    ? new Intl.DateTimeFormat("es-ES", {
+        timeZone: "Europe/Madrid",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(value))
+    : "";
 }
 export function age(value: Reading) {
   const min = Math.floor(value.age_seconds / 60);

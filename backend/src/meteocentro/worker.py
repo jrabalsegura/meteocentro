@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import signal
+import time
 from threading import Event, Thread
 
 from sqlalchemy import select
@@ -19,6 +20,8 @@ from meteocentro.job_queue import Queue, db_now
 from meteocentro.meteoclimatic import MeteoclimaticAdapter, MeteoclimaticIngestor
 from meteocentro.meteoclimatic_catalog import MeteoclimaticCatalog
 from meteocentro.models import IngestionRun, Job, Provider, ProviderRuntime
+
+SCHEDULE_SECONDS = 30
 
 
 def emit(**values):
@@ -186,6 +189,7 @@ def main() -> int:
 
         start_heartbeat(get_engine(), stopped)
     count = 0
+    next_schedule = float("-inf")
     while not stopped.is_set():
         try:
             if args.status:
@@ -197,10 +201,13 @@ def main() -> int:
             from meteocentro.history import refresh_aggregates
             from meteocentro.history_maintenance import schedule_maintenance
 
-            schedule_maintenance(get_engine())
+            # Scheduling only creates due jobs; claiming below still runs every poll.
+            if time.monotonic() >= next_schedule:
+                schedule_maintenance(get_engine())
+                for queue in queues:
+                    queue.schedule()
+                next_schedule = time.monotonic() + SCHEDULE_SECONDS
             refresh_aggregates(get_engine())
-            for queue in queues:
-                queue.schedule()
             if args.resume:
                 try:
                     queues[0].resume()

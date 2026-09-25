@@ -195,6 +195,42 @@ class DeploymentUpdates(unittest.TestCase):
     def test_failed_migration_preserves_previous_release_and_stops_apps(self):
         self.check_update(fail_migration=True)
 
+    def test_failures_name_the_cause_without_secrets(self):
+        import errno
+        import io
+        from contextlib import redirect_stderr
+
+        secret = "postgresql+psycopg://meteocentro:s3cret@db/meteocentro"
+        cases = [
+            (
+                OSError(errno.EADDRINUSE, "Address already in use"),
+                "Address already in use",
+            ),
+            (
+                subprocess.CalledProcessError(1, ["podman", "run", "--env", secret]),
+                "podman run exited with 1",
+            ),
+            (
+                BlockingIOError(errno.EAGAIN, "busy"),
+                "another operation holds the state lock",
+            ),
+        ]
+        for error, expected in cases:
+
+            def fail(_args, error=error):
+                raise error
+
+            output = io.StringIO()
+            with (
+                patch("sys.argv", ["ops.py", "smoke", "http://127.0.0.1:1"]),
+                patch.object(ops, "smoke", side_effect=fail),
+                redirect_stderr(output),
+            ):
+                self.assertEqual(ops.main(), 1)
+            self.assertIn(expected, output.getvalue())
+            self.assertNotIn("s3cret", output.getvalue())
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -49,6 +49,7 @@ app = FastAPI(
     dependencies=[Depends(require_reader)],
 )
 DbSession = Annotated[Session, Depends(get_session)]
+Freshness = Literal["fresh", "stale", "unknown", "historical_only"]
 app.include_router(map_router)
 app.include_router(history_router)
 app.include_router(auth_router)
@@ -100,7 +101,7 @@ class StationRead(BaseModel):
     latitude: float | None
     longitude: float | None
     altitude_m: float | None
-    freshness: Literal["fresh", "stale", "unknown", "historical_only"]
+    freshness: Freshness
 
 
 class SourceRead(BaseModel):
@@ -218,35 +219,57 @@ def providers(db: DbSession):
     }
 
 
-def freshness(
-    db: Session, station_id: UUID
-) -> Literal["fresh", "stale", "unknown", "historical_only"]:
-    sources = db.execute(
-        select(StationSource, Provider)
-        .join(Provider)
-        .where(StationSource.id.in_(eligible_source_ids(station_id)))
-    ).all()
-    if sources and all(
-        source.capabilities.get("daily_history") and not source.capabilities.get("current")
-        for source, _ in sources
-    ):
-        return "historical_only"
-    has_data = False
-    for source, provider in sources:
-        latest = db.scalar(
-            select(func.max(LatestObservation.observed_at)).where(
-                LatestObservation.source_id == source.id
-            )
+def freshness_by_station(db: Session, station_ids: list[UUID]) -> dict[UUID, Freshness]:
+    """One query for a whole page instead of one per station and source."""
+    if not station_ids:
+        return {}
+    latest = (
+        select(LatestObservation.source_id, func.max(LatestObservation.observed_at).label("at"))
+        .group_by(LatestObservation.source_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(
+            StationSource.station_id,
+            StationSource.capabilities,
+            Provider.capabilities,
+            latest.c.at,
         )
-        if latest is not None:
-            has_data = True
-            threshold = provider.capabilities.get("stale_after_seconds", 3600)
-            if latest >= datetime.now(UTC) - timedelta(seconds=threshold):
-                return "fresh"
-    return "stale" if has_data else "unknown"
+        .join(Provider)
+        .outerjoin(latest, latest.c.source_id == StationSource.id)
+        .where(
+            StationSource.station_id.in_(station_ids),
+            StationSource.id.in_(eligible_source_ids()),
+        )
+    ).all()
+    now = datetime.now(UTC)
+    grouped = {}
+    for station_id, source_caps, provider_caps, at in rows:
+        grouped.setdefault(station_id, []).append((source_caps, provider_caps, at))
+    result = {}
+    for station_id in station_ids:
+        sources = grouped.get(station_id, [])
+        if sources and all(
+            caps.get("daily_history") and not caps.get("current") for caps, _, _ in sources
+        ):
+            result[station_id] = "historical_only"
+            continue
+        seen = [
+            (at, provider_caps.get("stale_after_seconds", 3600))
+            for _, provider_caps, at in sources
+            if at is not None
+        ]
+        result[station_id] = (
+            "fresh"
+            if any(at >= now - timedelta(seconds=limit) for at, limit in seen)
+            else "stale"
+            if seen
+            else "unknown"
+        )
+    return result
 
 
-def station_read(db: Session, station: Station) -> StationRead:
+def station_read(db: Session, station: Station, freshness: Freshness | None = None) -> StationRead:
     return StationRead(
         id=station.id,
         name=station.name,
@@ -254,7 +277,7 @@ def station_read(db: Session, station: Station) -> StationRead:
         latitude=station.latitude,
         longitude=station.longitude,
         altitude_m=station.altitude_m,
-        freshness=freshness(db, station.id),
+        freshness=freshness or freshness_by_station(db, [station.id])[station.id],
     )
 
 
@@ -290,8 +313,9 @@ def list_stations(
     stations = db.scalars(
         query.order_by(Station.name, Station.id).limit(limit).offset(offset)
     ).all()
+    states = freshness_by_station(db, [station.id for station in stations])
     return StationPage(
-        items=[station_read(db, station) for station in stations],
+        items=[station_read(db, station, states[station.id]) for station in stations],
         total=total,
         limit=limit,
         offset=offset,

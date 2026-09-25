@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make test)",
+      "Bash(make lint)",
+      "Bash(make web-build)",
+      "Bash(make check)",
+      "Bash(make ps)",
+      "Bash(backend/.venv/bin/pytest:*)",
+      "Bash(backend/.venv/bin/ruff check:*)",
+      "Bash(backend/.venv/bin/ruff format --check:*)",
+      "Bash(python3 -m unittest discover:*)",
+      "Bash(npm run build)",
+      "Bash(npm run typecheck)",
+      "Bash(npx tsc -b:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./deploy/env/*.env)",
+      "Bash(docker compose down -v:*)",
+      "Bash(docker volume rm:*)"
+    ]
+  }
+}

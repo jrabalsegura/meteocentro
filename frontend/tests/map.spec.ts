@@ -51,6 +51,33 @@ for (const width of [1440, 390]) {
   });
 }
 
+test("los marcadores separados conservan el orden oeste-este y norte-sur", async ({ page }) => {
+  const state = await mockApi(page, 3);
+  // IDs in the opposite order to geography: 0000 is east of 0001.
+  state.mapStations.set(0, { longitude: -3.7, latitude: 40.45 });
+  state.mapStations.set(1, { longitude: -3.706, latitude: 40.45 });
+  state.mapStations.set(2, { longitude: -1.5, latitude: 42 });
+  await page.goto("/?view=-3.703,40.45,10.69");
+  await expect(page.locator(".map-marker-leader")).toHaveCount(2);
+  const box = async (name: string) =>
+    (await page.getByRole("button", { name: new RegExp(`${name}.*Abrir resumen`) }).boundingBox())!;
+  await expect(async () => {
+    const east = await box("SINTÉTICA 0000");
+    const west = await box("SINTÉTICA 0001");
+    expect(west.x + west.width).toBeLessThan(east.x);
+  }).toPass({ timeout: 5000 });
+  // Same stations one above the other: the northern one stays on top.
+  state.mapStations.set(0, { longitude: -3.7, latitude: 40.4497 });
+  state.mapStations.set(1, { longitude: -3.7, latitude: 40.4503 });
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(async () => {
+    const south = await box("SINTÉTICA 0000");
+    const north = await box("SINTÉTICA 0001");
+    expect(north.y <= south.y || north.x + north.width < south.x).toBe(true);
+    if (Math.abs(north.y - south.y) > 5) expect(north.y).toBeLessThan(south.y);
+  }).toPass({ timeout: 5000 });
+});
+
 test("la densidad conserva el grupo y al liberar espacio lo separa sin más zoom", async ({ page }) => {
   const state = await mockApi(page, 6);
   // Two coincident stations surrounded by four markers at zoom 10.
@@ -592,3 +619,41 @@ for (const width of [1440, 390]) {
     await expect(low).toContainText("4,0 °C");
   });
 }
+
+test("el listado muestra mínima y máxima de hoy en temperatura, humedad y viento", async ({ page }) => {
+  const state = await mockApi(page, 2);
+  state.mapStations.set(0, {
+    day: {
+      provider: "aemet",
+      coverage: 0.8,
+      partial: true,
+      minimum: { value: 8.4, at: "2026-09-19T05:10:00+00:00", origin: "archive" },
+      maximum: { value: 27.1, at: "2026-09-19T14:40:00+00:00", origin: "reported" },
+    },
+  });
+  state.mapStations.set(1, {
+    day: {
+      provider: "aemet",
+      coverage: null,
+      partial: true,
+      minimum: { value: null, at: null, origin: null },
+      maximum: { value: null, at: null, origin: null },
+    },
+  });
+  await page.goto("/estaciones");
+  const table = page.getByRole("table");
+  await expect(table.getByRole("columnheader", { name: /Mín\. hoy/ })).toBeVisible();
+  await expect(table.getByRole("columnheader", { name: /Máx\. hoy/ })).toBeVisible();
+  const first = table.getByRole("row", { name: /SINTÉTICA 0000/ });
+  await expect(first).toContainText("8,4");
+  await expect(first).toContainText("07:10");
+  await expect(first).toContainText("27,1");
+  await expect(first).toContainText("16:40");
+  // No archive: an explicit dash, never the current reading presented as an extreme.
+  const second = table.getByRole("row", { name: /SINTÉTICA 0001/ });
+  await expect(second.locator(".day-cell").first()).toHaveText("—");
+  await table.getByRole("button", { name: /Máx\. hoy/ }).click();
+  await expect(table.getByRole("row").nth(1)).toContainText("SINTÉTICA 0000");
+  await page.getByRole("button", { name: /Lluvia/ }).click();
+  await expect(table.getByRole("columnheader", { name: /Mín\. hoy/ })).toHaveCount(0);
+});

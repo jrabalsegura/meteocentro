@@ -532,10 +532,19 @@ def main():
     try:
         args.func(args)
     except (ValueError, OSError, subprocess.SubprocessError) as error:
-        # Avoid dumping subprocess environments or database connection strings.
-        detail = (
-            str(error) if isinstance(error, ValueError) else "inspect local logs and permissions"
-        )
+        # Avoid dumping subprocess environments or database connection strings:
+        # only the OS reason or the failing executable/subcommand and exit code.
+        if isinstance(error, ValueError):
+            detail = str(error)
+        elif isinstance(error, subprocess.CalledProcessError):
+            command = [str(part) for part in error.cmd[:2]]
+            detail = f"{' '.join(command)} exited with {error.returncode}; inspect its output above"
+        elif isinstance(error, BlockingIOError):
+            detail = "another operation holds the state lock"
+        elif isinstance(error, OSError) and error.strerror:
+            detail = f"[errno {error.errno}] {error.strerror}"
+        else:
+            detail = "inspect local logs and permissions"
         print(
             f"Operation failed: {type(error).__name__}: {detail}",
             file=sys.stderr,

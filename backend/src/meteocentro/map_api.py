@@ -1,6 +1,6 @@
 """Bounded public projections. No provider requests, caches or per-station queries."""
 
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from math import isfinite
 from typing import Annotated, Literal
@@ -12,8 +12,15 @@ from sqlalchemy.orm import Session
 
 from meteocentro.db import get_session
 from meteocentro.domain.eligibility import eligible_source_ids, eligible_station_ids
-from meteocentro.history import MADRID, aggregate, channels, civil_window
-from meteocentro.models import LatestObservation, Observation, Provider, Station, StationSource
+from meteocentro.history import MADRID, VERSION, aggregate, channels, civil_window
+from meteocentro.models import (
+    DailySummary,
+    LatestObservation,
+    Observation,
+    Provider,
+    Station,
+    StationSource,
+)
 
 router = APIRouter(prefix="/api/v1")
 Metric = Literal["temperature", "humidity", "wind_speed", "wind_gust", "rain", "rain_rate"]
@@ -203,6 +210,91 @@ def comparisons(items, truncated):
     }
 
 
+DAY_METRICS = {
+    "temperature": ("temperature_daily_min", "temperature_daily_max"),
+    "humidity": ("humidity_daily_min", "humidity_daily_max"),
+    "wind_speed": (None, "wind_speed_daily_max"),
+}
+
+
+def km_h(value, unit):
+    return value * 3.6 if value is not None and unit == "m/s" else value
+
+
+def day_extremes(db, items, metric, now):
+    """Today's min/max per listed station, from the same source as its reading.
+
+    Same rule as the station card: a provider-reported daily value of today wins;
+    otherwise our hourly civil-day summary, extended by the current reading of that
+    source. Never mixes networks, ambiguous channels or earlier days. Two queries total.
+    """
+    if metric not in DAY_METRICS:
+        return
+    start, _ = civil_window(now.astimezone(MADRID).date())
+    readings = {i["reading"]["source_id"]: i for i in items if i["reading"]}
+    ids = [UUID(source_id) for source_id in readings]
+    for item in items:
+        item["day"] = None
+    if not readings:
+        return
+    reported_names = [name for name in DAY_METRICS[metric] if name]
+    reported = {}
+    for source_id, name, observation in db.execute(
+        select(LatestObservation.source_id, LatestObservation.metric, Observation)
+        .join(
+            Observation,
+            and_(
+                Observation.id == LatestObservation.observation_id,
+                Observation.observed_at == LatestObservation.observed_at,
+            ),
+        )
+        .where(
+            LatestObservation.source_id.in_(ids),
+            LatestObservation.metric.in_(reported_names),
+            LatestObservation.observed_at >= start,
+            LatestObservation.observed_at <= now,
+        )
+    ):
+        raw = observation.metrics.get(name, {})
+        value = raw.get("value")
+        if value is not None and not raw.get("plausibility_flags"):
+            reported[(str(source_id), name)] = km_h(float(value), raw.get("unit"))
+    archived = defaultdict(list)
+    for row in db.scalars(
+        select(DailySummary).where(
+            DailySummary.source_id.in_(ids),
+            DailySummary.period_start == start,
+            DailySummary.method == VERSION,
+            DailySummary.metrics.has_key(metric),
+        )
+    ):
+        stats = row.metrics[metric]
+        if stats.get("kind") in {"instant", "interval_mean"}:
+            archived[str(row.source_id)].append(stats)
+    for source_id, item in readings.items():
+        reading = item["reading"]
+        # Ambiguous channels are never combined silently.
+        stats = archived[source_id][0] if len(archived[source_id]) == 1 else None
+        current = reading["value"] if reading["observed_at"] >= start else None
+        result = {"provider": reading["provider"], "coverage": None, "partial": True}
+        for field, name in zip(("minimum", "maximum"), DAY_METRICS[metric], strict=True):
+            value, at, origin = None, None, None
+            if name and (source_id, name) in reported:
+                value, origin = reported[(source_id, name)], "reported"
+                at = stats.get(f"{field}_at") if stats else None
+            elif stats and stats.get(field) is not None:
+                value = km_h(float(stats[field]), stats.get("unit"))
+                at, origin = stats.get(f"{field}_at"), "archive"
+            # The current reading only extends an existing archive, never replaces it.
+            if current is not None and origin == "archive":
+                if current < value if field == "minimum" else current > value:
+                    value, at = current, reading["observed_at"].isoformat()
+            result[field] = {"value": value, "at": at, "origin": origin}
+        if stats:
+            result["coverage"], result["partial"] = stats.get("coverage"), stats.get("partial")
+        item["day"] = result
+
+
 @router.get("/map")
 def map_data(
     db: Annotated[Session, Depends(get_session)],
@@ -265,6 +357,7 @@ def map_data(
     displayed = filtered[:limit]
     for item in displayed:
         item.pop("readings")
+    day_extremes(db, displayed, metric, now)
     return {
         "items": displayed,
         "total": len(filtered),

@@ -1,10 +1,24 @@
 # Estado del desarrollo
 
-Última actualización: 24 de septiembre de 2026.
+Última actualización: 25 de septiembre de 2026.
 
 **Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 24-9-2026 se actualiza al commit `22998d6d3de593d307dabeb87263d0b60fdfa25b`: sesiones nuevas de un año y horas aproximadas separadas de mínima/máxima según nuestro archivo de la misma fuente, conservando los valores extremos. La búsqueda mantiene el encuadre en el primer resultado con zoom 12. Se conservan la separación de marcadores según espacio disponible, el filtro de una hora, el resumen diario, la vista inicial de Madrid, el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
+
+## Revisión para el flujo de Claude Code — 25 de septiembre de 2026
+
+**Petición:** adaptar el proyecto a Claude Code y eliminar errores, ineficiencias y complejidad innecesaria, con prueba local en Docker Desktop antes de GitHub y `remote`. Rama `claude/revision-flujo-claude-code`. Sin cambios de esquema, dependencias, ingesta, cálculo de históricos ni vista inicial.
+
+**Correcciones:** `/api/v1/stations` calculaba la frescura con 1 + N consultas por estación y origen; ahora usa una consulta por página (prueba con recuento de sentencias, que falla con el código anterior). El worker planificaba mantenimiento y trabajos de ambos proveedores cada 2 s; ahora cada 30 s, manteniendo la reclamación de trabajos cada 2 s. `get_session` reutiliza su `sessionmaker`. `ops.py` muestra la causa de un fallo (`[errno 98] Address already in use`, comando y código de salida, bloqueo ocupado) sin variables ni cadenas de conexión; prueba nueva que lo comprueba. La ficha mostraba la longitud de Madrid como «-3.7° E»; ahora «3.7° O». La gestión ya no muestra «Unexpected token <» si el proxy devuelve una página HTML de error. El Nginx del contenedor comprime JS/CSS/SVG (el bundle principal pasa de 257 kB a 95 kB); el JSON de la API no se comprime.
+
+**Simplificación:** Compose usa `Containerfile.backend` (la misma imagen que producción, bases por digest) y los arranques `meteocentro.start migrate/worker`; se elimina `api.Dockerfile`. La base local se reinicia con Docker Desktop, como ya hacía el worker. `Makefile`, `CLAUDE.md` (importa `AGENTS.md`) y `.claude/settings.json` con permisos de solo lectura/pruebas y bloqueo de lectura de `.env`.
+
+**Validación:** Ruff y formato con el alcance de CI; 179 pruebas de backend sobre PostgreSQL 17 temporal; `test_phase0` y `test_deploy` correctos; TypeScript/Vite correctos; Playwright con fixtures: 28 recorridos correctos y uno optativo omitido. Imagen web construida y `nginx -t` correcto; compresión comprobada con curl. Stack local levantado con `make up-worker`: la base local, que estaba en `0004_history`, migró a `0006_operations`; API sana y un ciclo AEMET real correcto con la clave local. Sin cuenta local de administración todavía.
+
+**Peticiones añadidas tras la prueba local:** (1) al separar marcadores próximos se asignaban las posiciones por ID de estación, de modo que p. ej. Tetuán y Ciudad Universitaria podían quedar invertidas; ahora se colocan por filas de norte a sur y, en cada fila, de oeste a este (recorrido nuevo que falla con el orden anterior). (2) El listado bajo el mapa muestra «Mín. hoy» y «Máx. hoy», ordenables, en temperatura, humedad y viento, con la misma regla que la ficha: diario reportado por la fuente si es de hoy; si no, resumen horario de nuestro archivo del día civil de Madrid de la misma fuente, ampliado con su lectura actual. Sin archivo ni diario reportado se muestra «—»: la lectura actual nunca se presenta como extremo. No se mezclan redes ni canales ambiguos; viento en km/h. `/api/v1/map` añade el campo `day` con dos consultas agrupadas, independientes del número de estaciones. En la base local: 189 de 200 estaciones con extremos de temperatura hoy, 140 de ellos reportados por Meteoclimatic. Validación repetida: 180 pruebas de backend, 30 recorridos de navegador correctos y uno optativo omitido, lint y compilación correctos.
+
+**Pendiente:** revisión del usuario en local, PR y despliegue a `remote` solo cuando se autorice.
 
 ## Sesión anual y horas aproximadas de extremos — 24 de septiembre de 2026
 

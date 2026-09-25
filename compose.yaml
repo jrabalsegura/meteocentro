@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: meteocentro
       POSTGRES_USER: meteocentro
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}
+    restart: unless-stopped
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
@@ -19,8 +20,8 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: deploy/containers/api.Dockerfile
-    command: ["alembic", "upgrade", "head"]
+      dockerfile: deploy/containers/Containerfile.backend
+    command: ["python", "-m", "meteocentro.start", "migrate"]
     environment:
       DATABASE_URL: postgresql+psycopg://meteocentro:${POSTGRES_PASSWORD}@db:5432/meteocentro
     depends_on:
@@ -30,7 +31,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: deploy/containers/api.Dockerfile
+      dockerfile: deploy/containers/Containerfile.backend
     environment:
       PRIVATE_READ: ${PRIVATE_READ:-true}
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost:5173}
@@ -68,8 +69,8 @@ services:
     profiles: ["ingestion"]
     build:
       context: .
-      dockerfile: deploy/containers/api.Dockerfile
-    command: ["python", "-m", "meteocentro.worker"]
+      dockerfile: deploy/containers/Containerfile.backend
+    command: ["python", "-m", "meteocentro.start", "worker"]
     restart: unless-stopped
     environment:
       HISTORY_DAILY_HTTP_BUDGET: ${HISTORY_DAILY_HTTP_BUDGET:-20}

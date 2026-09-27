@@ -24,7 +24,7 @@ LEVEL_INDEX = 2  # 1000, 925, 850 hPa ...
 PLACES = {"madrid": (40.4165, -3.70256), "huetor-santillan": (37.22091, -3.51634)}
 SMOOTH_DAYS = 11
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "backend/src/meteocentro/data/t850_climatology.json"
+OUTPUT = ROOT / "backend/src/meteocentro/reference/t850_climatology.json"
 
 
 def fetch(url):

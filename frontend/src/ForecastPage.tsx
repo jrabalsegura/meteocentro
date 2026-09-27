@@ -361,19 +361,61 @@ function span(times: number[][]): [number, number] {
   return all.length ? [Math.min(...all) * 1000, Math.max(...all) * 1000] : [0, 1];
 }
 
+const DAYS_KEY = "meteocentro.forecast.days";
+
+function storedDays() {
+  try {
+    return localStorage.getItem(DAYS_KEY) === "16" ? 16 : 10;
+  } catch {
+    return 10;
+  }
+}
+
+/** From a few hours ago to the chosen horizon, like a classic 10-day meteogram. */
+function horizon(times: number[][], days: number): [number, number] {
+  const [first, last] = span(times);
+  const start = Math.max(first, Date.now() - 6 * 3600000);
+  return [start, Math.min(last, start + days * 86400000)];
+}
+
 function ModelSection({ place }: { place: Place }) {
   const models = ["gfs", "ecmwf"].map((code) => [code, place.models[code]] as const);
+  const [days, setDays] = useState(storedDays);
   // One time range for both models, so their horizons compare at a glance.
   const range = useMemo(
-    () => span(models.flatMap(([, s]) => (s ? [s.data.time] : []))),
-    [place],
+    () => horizon(models.flatMap(([, s]) => (s ? [s.data.time] : [])), days),
+    [place, days],
   );
+  const choose = (value: number) => {
+    setDays(value);
+    try {
+      localStorage.setItem(DAYS_KEY, String(value));
+    } catch {
+      // Private mode or blocked storage: the choice lasts for this view only.
+    }
+  };
   return (
     <section className="forecast-section" aria-labelledby={`models-${place.code}`}>
-      <h3 id={`models-${place.code}`}>Meteogramas GFS y ECMWF</h3>
+      <div className="forecast-section-head">
+        <h3 id={`models-${place.code}`}>Meteogramas GFS y ECMWF</h3>
+        <div className="forecast-range" role="group" aria-label="Horizonte">
+          {[10, 16].map((value) => (
+            <button
+              key={value}
+              aria-pressed={days === value}
+              className={days === value ? "active" : ""}
+              onClick={() => choose(value)}
+            >
+              {value} días
+            </button>
+          ))}
+        </div>
+      </div>
       <p className="forecast-note">
-        Punto de rejilla más cercano. Temperatura, presión, viento y nubes cada 3 h; precipitación
-        acumulada en ventanas de 6 h (00, 06, 12 y 18 UTC). La línea discontinua vertical marca el momento actual.
+        Punto de rejilla más cercano. Temperatura en rojo y punto de rocío punteado (eje izquierdo);
+        barras de precipitación acumulada en 6 h con su valor (eje derecho, mm). Arriba, el cielo
+        estimado a partir de la nubosidad y la lluvia del modelo; entre paneles, hacia dónde sopla el
+        viento (en rojo desde 30 km/h). La línea discontinua marca el momento actual.
       </p>
       <div className="forecast-models">
         {models.map(([code, snapshot]) => (

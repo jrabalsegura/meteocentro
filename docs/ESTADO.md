@@ -6,6 +6,14 @@
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
 
+## Previsiones: posición y meteograma tipo Wetterzentrale — 27 de septiembre de 2026
+
+**Petición:** poner «Previsiones» justo después de «Mapa» y hacer que los meteogramas se parezcan más a los de Wetterzentrale: más condensados en horizontal, con la variación de temperatura y la lluvia más visibles. Rama `claude/previsiones-meteograma`.
+
+**Cambios:** la navegación queda así: Mapa, Previsiones, Estaciones, Datos diarios, Históricos. El meteograma pasa a un panel principal con la temperatura a 2 m (roja, suavizada) y el punto de rocío (punteado) en el eje izquierdo, y barras de precipitación en 6 h con su valor en un eje derecho (mm) escalado a la lluvia visible. Por encima, una fila de símbolos del cielo estimados con la nubosidad y la lluvia del modelo (la nube alta cuenta un 60 %); debajo, flechas que indican hacia dónde sopla el viento, en rojo desde 30 km/h. Siguen paneles compactos de viento y rachas, presión y 850 hPa; el panel de nubosidad desaparece. El horizonte es de 10 días por defecto, con selector de 10/16 días que se guarda en el navegador, y empieza 6 h antes del momento actual, con una línea por día. Los símbolos van cada 6, 12 o 24 h según el ancho real del gráfico. Los datos, la API y los conjuntos no cambian.
+
+**Validación:** build de TypeScript/Vite correcto. Playwright: 33 recorridos correctos y uno optativo omitido; el recorrido de previsiones comprueba además el orden de las pestañas y el selector de días. Revisado con la respuesta real de producción a 1440 y 390 px, sin desbordamiento horizontal. La paleta rojo/azul/violeta pasa el validador de color para daltonismo.
+
 ## Pestaña de previsiones — 27 de septiembre de 2026
 
 **Petición:** nueva pestaña «Previsiones» con la predicción municipal de AEMET de Madrid (28079) y Huétor de Santillán (18099), meteogramas GFS y ECMWF de ambas localidades y diagramas de conjunto GFS/ECMWF de temperatura a 850 hPa y precipitación para Madrid. El usuario elige fabricar los meteogramas con datos de un acceso documentado: Wetterzentrale los dibuja en el navegador desde un JSON interno sin documentación ni licencia (`op_feed.php`), por lo que no se usa (invariante 9). Rama `claude/previsiones`; sin despliegue.

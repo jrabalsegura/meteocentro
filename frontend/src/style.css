@@ -1774,3 +1774,7 @@ footer div {
   .forecast-models { grid-template-columns: minmax(0, 1fr); }
   .forecast-days { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 }
+.forecast-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.forecast-range { display: flex; gap: 4px; }
+.forecast-range button { padding: 4px 10px; font-size: .75rem; }
+.forecast-range button.active { border-color: var(--purple); color: var(--purple); background: #f3f1fa; font-weight: 600; }

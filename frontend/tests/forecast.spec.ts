@@ -154,6 +154,14 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     const state = await mockForecasts(page);
     await page.goto("/");
+    // Second tab, right after the map.
+    await expect(page.getByRole("navigation", { name: "Principal" }).getByRole("link")).toHaveText([
+      "Mapa",
+      "Previsiones",
+      "Estaciones",
+      "Datos diarios",
+      "Históricos",
+    ]);
     await page.getByRole("link", { name: "Previsiones" }).click();
     await expect(page).toHaveURL(/\/previsiones/);
     await expect(page.getByRole("heading", { name: "Previsión para Madrid" })).toBeVisible();
@@ -167,6 +175,10 @@ for (const width of [1440, 390]) {
     await expect(page.locator(".forecast-hours")).toContainText("Ip");
     await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
     await expect(page.getByText("GEFS (NOAA) 0,5° · 31 miembros")).toBeVisible();
+    await expect(page.getByRole("button", { name: "10 días" })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "16 días" }).click();
+    await expect(page.getByRole("button", { name: "16 días" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
     await page.getByText("Ver datos en tabla (cada 6 h)").first().click();
     await expect(page.locator(".forecast-data table").first()).toBeVisible();
     expect(state.requests.some((r) => r.startsWith("/api/v1/map"))).toBe(false);

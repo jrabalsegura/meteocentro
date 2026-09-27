@@ -453,8 +453,10 @@ function EnsembleSection({ place }: { place: Place }) {
     <section className="forecast-section" aria-labelledby={`ens-${place.code}`}>
       <h3 id={`ens-${place.code}`}>Conjuntos (ensembles): temperatura a 850 hPa y precipitación</h3>
       <p className="forecast-note">
-        Cada línea gris es un miembro. La media solo se calcula cuando están todos los miembros;
-        la precipitación es la media de los miembros en ventanas de 6 h, con el valor del miembro más lluvioso.
+        Cada línea gris es un miembro. La media solo se calcula cuando están todos los miembros.
+        Precipitación: barras con la media de los miembros en 6 h y escala ajustada a esa media; el punto
+        hueco es el miembro más lluvioso (un triángulo en el borde si no cabe; su valor, en el tooltip).
+        Debajo, el porcentaje de miembros que dan al menos 1 mm en esas 6 h.
       </p>
       <div className="forecast-models">
         {ensembles.map(([code, snapshot]) => (

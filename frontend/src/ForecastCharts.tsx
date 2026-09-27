@@ -135,12 +135,23 @@ function panelOption(panels: Panel[], series: Series[], range: [number, number])
       confine: true,
       renderMode: "richText",
       formatter: (
-        items: { axisValue: number; seriesName: string; value: [number, number | null]; seriesIndex: number }[],
+        items: {
+          axisValue: number;
+          seriesName: string;
+          value: [number, number | null];
+          seriesIndex: number;
+          data: unknown;
+        }[],
       ) => {
         if (!items.length) return "";
         const lines = items
           .filter((item) => series[item.seriesIndex]?.legend !== false)
-          .map((item) => `${item.seriesName}: ${fmt(item.value[1], series[item.seriesIndex].unit)}`);
+          .map((item) => {
+            // Values drawn clipped at the top of the axis keep their real value here.
+            const real = (item.data as { real?: number | null } | null)?.real;
+            const value = real !== undefined ? real : item.value[1];
+            return `${item.seriesName}: ${fmt(value, series[item.seriesIndex].unit)}`;
+          });
         return [hourLabel.format(items[0].axisValue), ...lines].join("\n");
       },
     },
@@ -412,63 +423,106 @@ export function Meteogram({ model, range }: { model: ModelForecast; range: [numb
 export function EnsembleChart({ ensemble, range }: { ensemble: EnsembleForecast; range: [number, number] }) {
   const t850 = ensemble.temperature_850hPa;
   const rain = ensemble.precipitation_6h;
-  const panels: Panel[] = [
-    { title: "Temperatura a 850 hPa", unit: "°C", height: 190 },
-    { title: "Precipitación en 6 h", unit: "mm", height: 90, min: 0 },
-  ];
-  const height = panels.reduce((sum, p) => sum + p.height + 44, 0) + 26;
-  const maxRain = rain.time.map((_, i) => {
-    const values = rain.members.map((m) => m[i]);
-    return values.some((v) => v === null) ? null : Math.max(...(values as number[]));
-  });
-  const shift = (points: (number | null)[][]) =>
-    points.map(([x, v]) => [(x as number) - 3 * 3600000, v]);
-  const option = useMemo(() => panelOption(
-    panels,
-    [
-      // Members first so the control run and mean draw on top.
-      ...t850.members.slice(1).map((values, i) => ({
-        ...line(MEMBER, 1),
-        name: `Miembro ${i + 1}`,
-        panel: 0,
-        unit: "°C",
-        legend: false,
-        silent: true,
-        data: pairs(t850.time, values),
-      })),
-      { ...line(ORANGE, 1.5), name: "Control", panel: 0, unit: "°C", data: pairs(t850.time, t850.members[0]) },
-      { ...line(BLUE, 2.5), name: "Media", panel: 0, unit: "°C", data: pairs(t850.time, t850.mean) },
-      {
-        type: "bar",
-        name: "Precipitación media",
-        panel: 1,
-        unit: "mm",
-        color: BLUE,
-        barMaxWidth: 8,
-        itemStyle: { borderRadius: [2, 2, 0, 0] },
-        data: shift(pairs(rain.time, rain.mean)),
-      },
-      {
-        ...line(VIOLET, 1.5, "dashed"),
-        name: "Máximo de los miembros",
-        panel: 1,
-        unit: "mm",
-        showSymbol: true,
-        symbol: "circle",
-        symbolSize: 4,
-        data: shift(pairs(rain.time, maxRain)),
-      },
-    ],
-    range,
-  ), [ensemble, range]);
-  const root = useChart(option, height);
+  const option = useMemo(() => {
+    const shift = (x: number) => x * 1000 - 3 * 3600000;
+    const complete = (i: number) => rain.members.every((m) => m[i] !== null);
+    const maxRain = rain.time.map((_, i) =>
+      complete(i) ? Math.max(...rain.members.map((m) => m[i] as number)) : null,
+    );
+    const wet = rain.time.map((_, i) =>
+      complete(i)
+        ? Math.round((100 * rain.members.filter((m) => (m[i] as number) >= 1).length) / rain.members.length)
+        : null,
+    );
+    // Scale to the mean, not to the wettest member, so a 1 mm mean is clearly visible.
+    const visibleMeans = rain.time
+      .map((t, i) => (t * 1000 > range[0] && t * 1000 <= range[1] ? (rain.mean[i] ?? 0) : 0));
+    const cap = Math.max(2, Math.ceil(Math.max(...visibleMeans) * 1.5));
+    const panels: Panel[] = [
+      { title: "Temperatura a 850 hPa", unit: "°C", height: 190 },
+      { title: "Precipitación en 6 h", unit: "mm", height: 110, min: 0, max: cap, ticks: 2 },
+      { title: "Miembros con ≥ 1 mm en 6 h", unit: "%", height: 56, min: 0, max: 100, ticks: 2 },
+    ];
+    return {
+      height: panels.reduce((sum, p) => sum + p.height + 44, 0) + 26,
+      option: panelOption(
+        panels,
+        [
+          // Members first so the control run and mean draw on top.
+          ...t850.members.slice(1).map((values, i) => ({
+            ...line(MEMBER, 1),
+            name: `Miembro ${i + 1}`,
+            panel: 0,
+            unit: "°C",
+            legend: false,
+            silent: true,
+            data: pairs(t850.time, values),
+          })),
+          { ...line(ORANGE, 1.5), name: "Control", panel: 0, unit: "°C", data: pairs(t850.time, t850.members[0]) },
+          { ...line(BLUE, 2.5), name: "Media", panel: 0, unit: "°C", data: pairs(t850.time, t850.mean) },
+          {
+            type: "bar",
+            name: "Precipitación media",
+            panel: 1,
+            unit: "mm",
+            color: BLUE,
+            barMaxWidth: 14,
+            barMinWidth: 3,
+            itemStyle: { color: "rgba(42, 120, 214, 0.85)", borderRadius: [2, 2, 0, 0] },
+            labelLayout: { hideOverlap: true },
+            label: {
+              show: true,
+              position: "top",
+              fontSize: 9,
+              color: "#1f5fae",
+              formatter: (p: { value: [number, number | null] }) =>
+                p.value[1] !== null && p.value[1] >= 0.3 ? axisNumber(p.value[1]) : "",
+            },
+            data: rain.time.map((t, i) => [shift(t), rain.mean[i] || null]),
+          },
+          {
+            type: "scatter",
+            name: "Miembro más lluvioso",
+            panel: 1,
+            unit: "mm",
+            color: VIOLET,
+            // Hollow points; above the scale a triangle at the top edge (real value in the tooltip).
+            data: rain.time.map((t, i) => {
+              const real = maxRain[i];
+              const clipped = real !== null && real > cap;
+              return {
+                // Dry windows draw nothing; the tooltip still reports 0.
+                value: [shift(t), real === null || real === 0 ? null : Math.min(real, cap)],
+                real,
+                symbol: clipped ? "triangle" : "emptyCircle",
+                symbolSize: clipped ? 7 : 5,
+              };
+            }),
+          },
+          {
+            type: "bar",
+            name: "Miembros con ≥ 1 mm",
+            panel: 2,
+            unit: "%",
+            legend: false,
+            barMaxWidth: 14,
+            barMinWidth: 3,
+            itemStyle: { color: "rgba(74, 58, 167, 0.55)", borderRadius: [2, 2, 0, 0] },
+            data: rain.time.map((t, i) => [shift(t), wet[i] || null]),
+          },
+        ],
+        range,
+      ),
+    };
+  }, [ensemble, range]);
+  const root = useChart(option.option, option.height);
   return (
     <div
       ref={root}
       className="forecast-chart"
-      style={{ height }}
+      style={{ height: option.height }}
       role="img"
-      aria-label={`Diagrama de conjunto ${ensemble.label}: ${ensemble.members} miembros de temperatura a 850 hPa, media y control, y precipitación media en 6 horas.`}
+      aria-label={`Diagrama de conjunto ${ensemble.label}: ${ensemble.members} miembros de temperatura a 850 hPa, media y control, y precipitación media en 6 horas con el máximo de los miembros.`}
     />
   );
 }

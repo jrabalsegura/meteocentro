@@ -75,6 +75,10 @@ def run_claim(queue, claim, *, adapter_factory=None, after_chunk=None):
                 from meteocentro.history_import import run_history
 
                 result, cursor = run_history(queue, claim, adapter, after_chunk=after_chunk)
+            elif claim.kind == "forecast":
+                from meteocentro.forecast import run_aemet_forecast
+
+                result, cursor = run_aemet_forecast(queue, claim, adapter)
             elif queue.provider_code == "meteoclimatic" and claim.kind == "catalog":
                 result, cursor = MeteoclimaticCatalog(queue, claim, adapter).run()
             else:
@@ -157,7 +161,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--once",
-        choices=("current", "inventory", "catalog", "history"),
+        choices=("current", "inventory", "catalog", "history", "forecast"),
         help="one due job; respects scheduling, leases and quotas",
     )
     parser.add_argument("--provider", choices=("aemet", "meteoclimatic"))
@@ -206,6 +210,17 @@ def main() -> int:
                 schedule_maintenance(get_engine())
                 for queue in queues:
                     queue.schedule()
+                if not (args.once or args.resume or args.provider):
+                    from meteocentro.forecast import refresh_open_meteo
+
+                    try:
+                        forecast = refresh_open_meteo(get_engine(), settings)
+                    except SQLAlchemyError:
+                        raise
+                    except Exception:
+                        forecast = {"status": "retry", "code": "internal_error"}
+                    if forecast:
+                        emit(provider="open_meteo", **forecast)
                 next_schedule = time.monotonic() + SCHEDULE_SECONDS
             refresh_aggregates(get_engine())
             if args.resume:

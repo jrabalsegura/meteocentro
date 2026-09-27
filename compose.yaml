@@ -90,6 +90,8 @@ services:
       AEMET_CURRENT_RESERVE: ${AEMET_CURRENT_RESERVE:-220}
       AEMET_MINUTE_HTTP_BUDGET: ${AEMET_MINUTE_HTTP_BUDGET:-20}
       AEMET_CONCURRENCY: ${AEMET_CONCURRENCY:-1}
+      AEMET_FORECAST_ENABLED: ${AEMET_FORECAST_ENABLED:-true}
+      OPEN_METEO_ENABLED: ${OPEN_METEO_ENABLED:-true}
     depends_on:
       migrate:
         condition: service_completed_successfully

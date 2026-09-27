@@ -124,3 +124,15 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 - Por petición del usuario, sesiones nuevas de 365 días (8.760 horas) con caducidad absoluta y revocación. Las ya emitidas conservan su duración; volver a entrar emite la nueva cookie. El usuario retira la recuperación por correo: se conserva la administración de cuentas por CLI.
 - Conservar los valores extremos de las fuentes; aproximar por separado la hora de mínima y máxima usando las muestras de nuestro archivo del día civil de Madrid de esa misma estación y origen. Etiquetar «Hora aprox.» aunque el extremo archivado difiera del reportado; mostrar cobertura y ausencia de hora cuando no exista un archivo utilizable. No usar la hora de publicación del informe ni muestras de otra red. Sin modificar valores, cadencia ni almacenamiento.
 - Publicación en GitHub y despliegue manual en la instalación existente autorizados expresamente, sin nueva confirmación. Conservar puerto 8089, volumen, configuración ajena a la sesión, certificados y vhosts.
+
+## Previsiones — 27 de septiembre de 2026
+
+- Petición del usuario: pestaña «Previsiones» con AEMET (Madrid y Huétor de Santillán), meteogramas GFS/ECMWF de ambas localidades y conjuntos de temperatura a 850 hPa y precipitación solo para Madrid.
+- Los meteogramas de Wetterzentrale no se reutilizan: se dibujan en el navegador a partir de un JSON interno sin documentación ni licencia. El usuario elige fabricarlos a partir de Open-Meteo, que es una API documentada y gratuita para uso no comercial, con licencia CC BY 4.0 y atribución visible.
+- La predicción AEMET es un trabajo de la cola de AEMET (cuota compartida, cada 3 h); Open-Meteo es un trabajo local del worker (cada hora). La API solo lee lo que el worker ha guardado; el navegador no llama a los proveedores.
+- Se guarda solo la última previsión de cada fuente, localidad y producto; no se archivan previsiones ni se mezclan con observaciones o históricos.
+- Valores ausentes como nulos; «Ip» de AEMET como traza, no como cero ni como ausente. Horas de AEMET en hora oficial con el cambio de hora resuelto (una hora repetida en octubre, una omitida en marzo).
+- Instantáneos cada 3 h y precipitación en ventanas de 6 h que terminan a las 00, 06, 12 y 18 UTC; una ventana con alguna hora ausente queda sin valor. La media del conjunto solo se calcula con todos los miembros.
+- Modelos: `gfs_global` y `ecmwf_ifs025` deterministas; `gfs05` (GEFS 0,5°, porque 0,25° no ofrece 850 hPa) y `ecmwf_ifs025` de conjunto. El ECMWF de 9 km no ofrece 850 hPa en Open-Meteo.
+- Coordenadas: Madrid 40,4165, -3,70256; Huétor de Santillán 37,22091, -3,51634 (geocodificador de Open-Meteo). Se usa el punto de rejilla más próximo y se muestra su altitud.
+- Configuración: `AEMET_FORECAST_ENABLED`, `AEMET_FORECAST_SECONDS` (≥ 3.600), `OPEN_METEO_ENABLED` y `OPEN_METEO_FORECAST_SECONDS` (≥ 1.800). El ensayo de contenedores desactiva Open-Meteo para no usar la red.

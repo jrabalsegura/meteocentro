@@ -656,6 +656,7 @@ def test_disabled_network_cannot_claim_or_write_app_keeps_other_source(mc, db):
     assert set(db.scalars(select(Job.dedupe_key))) == {
         "aemet:current",
         "aemet:inventory",
+        "aemet:forecast",
         "meteoclimatic:current",
         "meteoclimatic:catalog",
     }

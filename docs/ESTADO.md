@@ -12,7 +12,9 @@
 
 **Cambio:** Huétor pasa a tener conjuntos. El trabajo de Open-Meteo pide cada hora también su punto de conjuntos (GEFS 0,5° y ECMWF ENS 0,25°), y la interfaz los muestra con la media climática de 850 hPa que ya estaba generada para esa localidad. Cada ciclo hace 8 peticiones (4 de metadatos y 2 por localidad), frente a las 7 anteriores. Sin migración.
 
-**Validación:** pruebas de backend y recorrido de navegador actualizados (8 previsiones de Open-Meteo, conjuntos de ambas localidades y fallo parcial de las dos). Resultados en la entrega.
+**Validación:** `make check` correcto: 204 pruebas de backend y una omitida (`test_phase4`, que depende de la hora y se salta en los primeros 30 min del día civil de Madrid), lint y build. Playwright: 33 recorridos correctos y uno optativo omitido. Pruebas actualizadas: 8 previsiones de Open-Meteo, conjuntos de ambas localidades y fallo parcial de las dos. CI del PR #19 en verde.
+
+**Despliegue:** solicitado por el usuario. Fusionado como `32820035ec0ba753ba9656b709b853d5293ca6fc`. Imágenes construidas desde ese SHA en `remote`. Con `ops.py prepare` solo cambian las imágenes API/worker/web y Quadlet genera 6 unidades; `ops.py apply`, sin migración, pasa la comprobación HTTP/SPA/protección. Se forzó un refresco de Open-Meteo (`python -m meteocentro.forecast --open-meteo-now`): 8 previsiones guardadas sin errores, incluidos los conjuntos de Huétor (GEFS de 12 UTC y ECMWF ENS de 06 UTC). Verificación: cuatro unidades activas; `state/current` apunta al intento del 27-9-2026 22:18 UTC y `state/previous` a `99e248f`. 72.201 observaciones, 208 estaciones, cero exclusiones, una cuenta, esquema `0007_forecasts` y 12 previsiones; huellas de vhosts, configuración privada y montaje del volumen sin cambios; `operations` en `ok`; HTTPS 200 en `/` y `/previsiones` y 401 sin sesión en `/api/v1/forecasts`.
 
 ## Previsiones: posición y meteograma tipo Wetterzentrale — 27 de septiembre de 2026
 

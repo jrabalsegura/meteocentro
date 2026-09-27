@@ -84,6 +84,7 @@ export type EnsembleForecast = {
   temperature_850hPa: { time: number[]; members: (number | null)[][]; mean: (number | null)[] };
   precipitation_6h: { time: number[]; members: (number | null)[][]; mean: (number | null)[] };
 };
+export type Climate = { period: string; dataset: string; values: number[] };
 type Place = {
   code: string;
   name: string;
@@ -91,6 +92,7 @@ type Place = {
   aemet: { daily: Snapshot<AemetDaily>; hourly: Snapshot<AemetHourly> };
   models: Record<string, Snapshot<ModelForecast>>;
   ensembles: Record<string, Snapshot<EnsembleForecast>> | null;
+  climate_850hPa?: Climate | null;
 };
 type Forecasts = {
   locations: Place[];
@@ -453,7 +455,9 @@ function EnsembleSection({ place }: { place: Place }) {
     <section className="forecast-section" aria-labelledby={`ens-${place.code}`}>
       <h3 id={`ens-${place.code}`}>Conjuntos (ensembles): temperatura a 850 hPa y precipitación</h3>
       <p className="forecast-note">
-        Cada línea gris es un miembro. La media solo se calcula cuando están todos los miembros.
+        Cada línea gris es un miembro. La media solo se calcula cuando están todos los miembros. La
+        línea negra discontinua es la media climática 1991–2020 a 850 hPa para ese día (reanálisis
+        NCEP/NCAR, suavizada a 11 días).
         Precipitación: barras con la media de los miembros en 6 h y escala ajustada a esa media; el punto
         hueco es el miembro más lluvioso (un triángulo en el borde si no cabe; su valor, en el tooltip).
         Debajo, el porcentaje de miembros que dan al menos 1 mm en esas 6 h.
@@ -466,7 +470,7 @@ function EnsembleSection({ place }: { place: Place }) {
                 <h4>{snapshot.data.label}</h4>
                 <Freshness snapshot={snapshot} source={`Open-Meteo · ${runLabel(snapshot.data.run)}`} issued={false} />
                 <Suspense fallback={<p className="forecast-empty">Dibujando conjunto…</p>}>
-                  <EnsembleChart ensemble={snapshot.data} range={range} />
+                  <EnsembleChart ensemble={snapshot.data} range={range} climate={place.climate_850hPa ?? null} />
                 </Suspense>
               </>
             ) : (

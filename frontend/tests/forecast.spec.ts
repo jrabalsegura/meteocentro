@@ -118,6 +118,11 @@ function place(code: string, name: string, withEnsemble: boolean) {
       gfs: snapshot(model("gfs", "GFS (NOAA) 0,25°")),
       ecmwf: code === "madrid" ? snapshot(model("ecmwf", "ECMWF IFS 0,25°")) : null,
     },
+    climate_850hPa: {
+      period: "1991-2020",
+      dataset: "SINTÉTICO",
+      values: Array.from({ length: 365 }, (_, i) => 11 + 7 * Math.sin(((i - 110) / 365) * 2 * Math.PI)),
+    },
     ensembles: withEnsemble
       ? {
           gfs: snapshot(ensemble("gfs", "GEFS (NOAA) 0,5° · 31 miembros", 31)),
@@ -175,6 +180,7 @@ for (const width of [1440, 390]) {
     await expect(page.locator(".forecast-hours")).toContainText("Ip");
     await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
     await expect(page.getByText("GEFS (NOAA) 0,5° · 31 miembros")).toBeVisible();
+    await expect(page.locator(".forecast-chart svg text", { hasText: "Media 1991–2020" })).toHaveCount(2);
     await expect(page.getByRole("button", { name: "10 días" })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "16 días" }).click();
     await expect(page.getByRole("button", { name: "16 días" })).toHaveAttribute("aria-pressed", "true");

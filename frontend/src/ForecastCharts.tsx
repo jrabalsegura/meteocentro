@@ -12,7 +12,7 @@ import {
 } from "echarts/components";
 import { SVGRenderer } from "echarts/renderers";
 import { LabelLayout } from "echarts/features";
-import type { EnsembleForecast, ModelForecast } from "./ForecastPage";
+import type { Climate, EnsembleForecast, ModelForecast } from "./ForecastPage";
 
 use([
   LineChart,
@@ -36,6 +36,7 @@ const BLUE = "#2a78d6";
 const VIOLET = "#4a3aa7";
 const MEMBER = "rgba(98, 110, 128, 0.28)";
 const INK = "#5c6b7e";
+const CLIMATE = "#1f2937";
 const GRID_LINE = "#e8ecf2";
 
 const dayLabel = new Intl.DateTimeFormat("es-ES", {
@@ -420,7 +421,24 @@ export function Meteogram({ model, range }: { model: ModelForecast; range: [numb
   );
 }
 
-export function EnsembleChart({ ensemble, range }: { ensemble: EnsembleForecast; range: [number, number] }) {
+const CUMULATIVE_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+
+/** Index into a 365-day climatology from 1 January; 29 February uses 28 February. */
+function climateDay(ms: number) {
+  const date = new Date(ms);
+  const month = date.getUTCMonth();
+  return CUMULATIVE_DAYS[month] + Math.min(date.getUTCDate(), month === 1 ? 28 : 31) - 1;
+}
+
+export function EnsembleChart({
+  ensemble,
+  range,
+  climate,
+}: {
+  ensemble: EnsembleForecast;
+  range: [number, number];
+  climate: Climate | null;
+}) {
   const t850 = ensemble.temperature_850hPa;
   const rain = ensemble.precipitation_6h;
   const option = useMemo(() => {
@@ -460,6 +478,19 @@ export function EnsembleChart({ ensemble, range }: { ensemble: EnsembleForecast;
           })),
           { ...line(ORANGE, 1.5), name: "Control", panel: 0, unit: "°C", data: pairs(t850.time, t850.members[0]) },
           { ...line(BLUE, 2.5), name: "Media", panel: 0, unit: "°C", data: pairs(t850.time, t850.mean) },
+          ...(climate
+            ? [
+                {
+                  ...line(CLIMATE, 1.8, "dashed"),
+                  name: `Media ${climate.period.replace("-", "–")}`,
+                  panel: 0,
+                  unit: "°C",
+                  smooth: true,
+                  z: 3,
+                  data: t850.time.map((t) => [t * 1000, climate.values[climateDay(t * 1000)] ?? null]),
+                },
+              ]
+            : []),
           {
             type: "bar",
             name: "Precipitación media",
@@ -514,7 +545,7 @@ export function EnsembleChart({ ensemble, range }: { ensemble: EnsembleForecast;
         range,
       ),
     };
-  }, [ensemble, range]);
+  }, [ensemble, range, climate]);
   const root = useChart(option.option, option.height);
   return (
     <div
@@ -522,7 +553,7 @@ export function EnsembleChart({ ensemble, range }: { ensemble: EnsembleForecast;
       className="forecast-chart"
       style={{ height: option.height }}
       role="img"
-      aria-label={`Diagrama de conjunto ${ensemble.label}: ${ensemble.members} miembros de temperatura a 850 hPa, media y control, y precipitación media en 6 horas con el máximo de los miembros.`}
+      aria-label={`Diagrama de conjunto ${ensemble.label}: ${ensemble.members} miembros de temperatura a 850 hPa, media, control y media climática, y precipitación media en 6 horas con el miembro más lluvioso.`}
     />
   );
 }

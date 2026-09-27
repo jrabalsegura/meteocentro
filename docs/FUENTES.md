@@ -30,6 +30,7 @@ Consulta realizada el 9 de septiembre de 2026. Se utilizaron páginas de los pro
 
 - **S29** [AEMET predicción por municipios](https://opendata.aemet.es/dist/index.html) (`prediccion/especifica/municipio/diaria|horaria/{id}`). Contrastada el 27-9-2026 con respuestas reales y metadatos de Madrid y Huétor de Santillán. Se sirve en ISO-8859-15. Los metadatos no indican la zona horaria de `elaborado` y la publican «cuatro veces al día».
 - **S30** [Open-Meteo](https://open-meteo.com/en/docs), su [API de conjuntos](https://open-meteo.com/en/docs/ensemble-api), sus [condiciones](https://open-meteo.com/en/terms) y su [cómputo de llamadas](https://open-meteo.com/en/pricing). Gratuita para uso no comercial con CC BY 4.0: 10.000 llamadas al día, y más de 10 variables o de 2 semanas cuentan fraccionalmente como varias. Los ficheros `/data/{modelo}/static/meta.json` indican la pasada servida.
+- **S31** [NCEP/NCAR Reanalysis 1 (NOAA PSL)](https://psl.noaa.gov/data/gridded/data.ncep.reanalysis.html): media diaria a largo plazo 1991–2020 por niveles de presión (`air.day.ltm.1991-2020.nc`), servida por OPeNDAP. Dominio público, citando NCEP/NCAR y NOAA PSL. Consultada el 27-9-2026 solo para los puntos de rejilla que rodean Madrid y Huétor de Santillán.
 
 ## Implementación y cartografía
 

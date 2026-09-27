@@ -55,7 +55,7 @@ LOCATIONS = {
             "18099",
             37.22091,
             -3.51634,
-            False,
+            True,
             "https://www.aemet.es/es/eltiempo/prediccion/municipios/huetor-de-santillan-id18099",
         ),
     )

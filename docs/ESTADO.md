@@ -1,10 +1,18 @@
 # Estado del desarrollo
 
-Última actualización: 27 de septiembre de 2026.
+Última actualización: 28 de septiembre de 2026.
 
 **Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 24-9-2026 se actualiza al commit `22998d6d3de593d307dabeb87263d0b60fdfa25b`: sesiones nuevas de un año y horas aproximadas separadas de mínima/máxima según nuestro archivo de la misma fuente, conservando los valores extremos. La búsqueda mantiene el encuadre en el primer resultado con zoom 12. Se conservan la separación de marcadores según espacio disponible, el filtro de una hora, el resumen diario, la vista inicial de Madrid, el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
+
+## Conjuntos también para Huétor de Santillán — 28 de septiembre de 2026
+
+**Petición:** añadir los ensembles de Huétor de Santillán. Rama `claude/ensembles-huetor`.
+
+**Cambio:** Huétor pasa a tener conjuntos. El trabajo de Open-Meteo pide cada hora también su punto de conjuntos (GEFS 0,5° y ECMWF ENS 0,25°), y la interfaz los muestra con la media climática de 850 hPa que ya estaba generada para esa localidad. Cada ciclo hace 8 peticiones (4 de metadatos y 2 por localidad), frente a las 7 anteriores. Sin migración.
+
+**Validación:** pruebas de backend y recorrido de navegador actualizados (8 previsiones de Open-Meteo, conjuntos de ambas localidades y fallo parcial de las dos). Resultados en la entrega.
 
 ## Previsiones: posición y meteograma tipo Wetterzentrale — 27 de septiembre de 2026
 

@@ -98,7 +98,7 @@ def main():
     }
     body = json.dumps(document, ensure_ascii=False, indent=1) + "\n"
     OUTPUT.parent.mkdir(exist_ok=True)
-    OUTPUT.write_text(body)
+    OUTPUT.write_text(body, encoding="utf-8")
     print(OUTPUT, hashlib.sha256(body.encode()).hexdigest())
 
 

@@ -40,7 +40,9 @@ ATTRIBUTION = [
 @cache
 def climatology():
     """Static 850 hPa reference (scripts/fetch_t850_climatology.py), never mixed with forecasts."""
-    document = json.loads((Path(__file__).parent / "reference/t850_climatology.json").read_text())
+    document = json.loads(
+        (Path(__file__).parent / "reference/t850_climatology.json").read_text("utf-8")
+    )
     return {
         code: {
             "period": document["period"],

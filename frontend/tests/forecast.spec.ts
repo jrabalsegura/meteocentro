@@ -140,7 +140,7 @@ async function mockForecasts(page: Page) {
       json: {
         locations: [
           place("madrid", "Madrid", true),
-          place("huetor-santillan", "Huétor de Santillán", false),
+          place("huetor-santillan", "Huétor de Santillán", true),
         ],
         attribution: [
           { source: "aemet", text: "© AEMET.", url: "https://www.aemet.es/es/nota_legal" },
@@ -192,12 +192,13 @@ for (const width of [1440, 390]) {
     await page.getByRole("tab", { name: "Huétor de Santillán" }).click();
     await expect(page).toHaveURL(/lugar=huetor-santillan/);
     await expect(page.getByRole("heading", { name: "Previsión para Huétor de Santillán" })).toBeVisible();
-    await expect(page.getByText("Conjuntos (ensembles)")).toHaveCount(0);
+    await expect(page.getByText("Conjuntos (ensembles)")).toBeVisible();
     await expect(page.getByText("ECMWF: todavía no hay datos")).toBeVisible();
     await expect(page.locator(".forecast-meta.stale").first()).toContainText(
       "sin actualizar recientemente",
     );
-    await expect(page.locator(".forecast-chart svg")).toHaveCount(1);
+    // GFS meteogram (ECMWF missing) and both ensembles.
+    await expect(page.locator(".forecast-chart svg")).toHaveCount(3);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth,
     );

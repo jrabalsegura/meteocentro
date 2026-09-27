@@ -475,28 +475,26 @@ def test_open_meteo_refresh_is_scheduled_and_never_repeats_early(db, engine):
     calls = []
     settings = open_meteo_settings(engine)
     report = refresh_open_meteo(engine, settings, transport=open_meteo_transport(calls))
-    assert report["status"] == "succeeded" and len(report["saved"]) == 6
-    # 4 metadata files, 2 deterministic points, 1 ensemble point (Madrid only).
-    assert len(calls) == 7
+    assert report["status"] == "succeeded" and len(report["saved"]) == 8
+    # 4 metadata files, then a deterministic and an ensemble point per place.
+    assert len(calls) == 8
     assert (
         refresh_open_meteo(engine, settings, transport=open_meteo_transport(calls))
         is None
     )
-    assert len(calls) == 7
+    assert len(calls) == 8
     job = db.scalar(select(Job).where(Job.dedupe_key == OPEN_METEO_JOB))
     assert job.next_run_at - db_now(db) > timedelta(minutes=55)
-    ensemble = db.scalar(
-        select(ForecastSnapshot).where(ForecastSnapshot.product == "ensemble_ecmwf")
-    )
-    assert ensemble.location == "madrid"
-    assert ensemble.issued_at == datetime.fromtimestamp(T0 + 6 * 3600, UTC)
-    assert not db.scalar(
-        select(func.count())
-        .select_from(ForecastSnapshot)
-        .where(
-            ForecastSnapshot.location == "huetor-santillan",
-            ForecastSnapshot.product.like("ensemble%"),
-        )
+    ensembles = db.scalars(
+        select(ForecastSnapshot).where(ForecastSnapshot.product.like("ensemble%"))
+    ).all()
+    assert {(e.location, e.product) for e in ensembles} == {
+        (place, f"ensemble_{model}")
+        for place in ("madrid", "huetor-santillan")
+        for model in ("gfs", "ecmwf")
+    }
+    assert all(
+        e.issued_at == datetime.fromtimestamp(T0 + 6 * 3600, UTC) for e in ensembles
     )
 
 
@@ -505,7 +503,8 @@ def test_open_meteo_failure_keeps_previous_snapshot_and_retries_sooner(db, engin
     refresh_open_meteo(engine, settings, transport=open_meteo_transport([]))
     before = db.scalar(
         select(ForecastSnapshot.fetched_at).where(
-            ForecastSnapshot.product == "ensemble_gfs"
+            ForecastSnapshot.location == "madrid",
+            ForecastSnapshot.product == "ensemble_gfs",
         )
     )
     report = refresh_open_meteo(
@@ -516,14 +515,16 @@ def test_open_meteo_failure_keeps_previous_snapshot_and_retries_sooner(db, engin
     )
     assert report["status"] == "partial"
     assert report["errors"] == {
-        "madrid/ensemble_gfs": "provider_transient",
-        "madrid/ensemble_ecmwf": "provider_transient",
+        f"{place}/ensemble_{model}": "provider_transient"
+        for place in ("madrid", "huetor-santillan")
+        for model in ("gfs", "ecmwf")
     }
     db.expire_all()
     assert (
         db.scalar(
             select(ForecastSnapshot.fetched_at).where(
-                ForecastSnapshot.product == "ensemble_gfs"
+                ForecastSnapshot.location == "madrid",
+                ForecastSnapshot.product == "ensemble_gfs",
             )
         )
         == before
@@ -579,7 +580,7 @@ def test_forecast_api_returns_snapshots_with_staleness(db):
     assert madrid["aemet"]["hourly"] is None
     assert madrid["ensembles"]["gfs"]["data"] == {"members": 31}
     assert madrid["ensembles"]["gfs"]["stale"] is False
-    assert huetor["ensembles"] is None
+    assert huetor["ensembles"] == {"gfs": None, "ecmwf": None}
     assert huetor["models"]["ecmwf"]["data"] == {"time": []}
     assert {item["source"] for item in body["attribution"]} == {
         "aemet",

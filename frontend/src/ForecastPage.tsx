@@ -84,6 +84,7 @@ export type EnsembleForecast = {
   temperature_850hPa: { time: number[]; members: (number | null)[][]; mean: (number | null)[] };
   precipitation_6h: { time: number[]; members: (number | null)[][]; mean: (number | null)[] };
 };
+export type Climate = { period: string; dataset: string; values: number[] };
 type Place = {
   code: string;
   name: string;
@@ -91,6 +92,7 @@ type Place = {
   aemet: { daily: Snapshot<AemetDaily>; hourly: Snapshot<AemetHourly> };
   models: Record<string, Snapshot<ModelForecast>>;
   ensembles: Record<string, Snapshot<EnsembleForecast>> | null;
+  climate_850hPa?: Climate | null;
 };
 type Forecasts = {
   locations: Place[];
@@ -361,19 +363,61 @@ function span(times: number[][]): [number, number] {
   return all.length ? [Math.min(...all) * 1000, Math.max(...all) * 1000] : [0, 1];
 }
 
+const DAYS_KEY = "meteocentro.forecast.days";
+
+function storedDays() {
+  try {
+    return localStorage.getItem(DAYS_KEY) === "16" ? 16 : 10;
+  } catch {
+    return 10;
+  }
+}
+
+/** From a few hours ago to the chosen horizon, like a classic 10-day meteogram. */
+function horizon(times: number[][], days: number): [number, number] {
+  const [first, last] = span(times);
+  const start = Math.max(first, Date.now() - 6 * 3600000);
+  return [start, Math.min(last, start + days * 86400000)];
+}
+
 function ModelSection({ place }: { place: Place }) {
   const models = ["gfs", "ecmwf"].map((code) => [code, place.models[code]] as const);
+  const [days, setDays] = useState(storedDays);
   // One time range for both models, so their horizons compare at a glance.
   const range = useMemo(
-    () => span(models.flatMap(([, s]) => (s ? [s.data.time] : []))),
-    [place],
+    () => horizon(models.flatMap(([, s]) => (s ? [s.data.time] : [])), days),
+    [place, days],
   );
+  const choose = (value: number) => {
+    setDays(value);
+    try {
+      localStorage.setItem(DAYS_KEY, String(value));
+    } catch {
+      // Private mode or blocked storage: the choice lasts for this view only.
+    }
+  };
   return (
     <section className="forecast-section" aria-labelledby={`models-${place.code}`}>
-      <h3 id={`models-${place.code}`}>Meteogramas GFS y ECMWF</h3>
+      <div className="forecast-section-head">
+        <h3 id={`models-${place.code}`}>Meteogramas GFS y ECMWF</h3>
+        <div className="forecast-range" role="group" aria-label="Horizonte">
+          {[10, 16].map((value) => (
+            <button
+              key={value}
+              aria-pressed={days === value}
+              className={days === value ? "active" : ""}
+              onClick={() => choose(value)}
+            >
+              {value} días
+            </button>
+          ))}
+        </div>
+      </div>
       <p className="forecast-note">
-        Punto de rejilla más cercano. Temperatura, presión, viento y nubes cada 3 h; precipitación
-        acumulada en ventanas de 6 h (00, 06, 12 y 18 UTC). La línea discontinua vertical marca el momento actual.
+        Punto de rejilla más cercano. Temperatura en rojo y punto de rocío punteado (eje izquierdo);
+        barras de precipitación acumulada en 6 h con su valor (eje derecho, mm). Arriba, el cielo
+        estimado a partir de la nubosidad y la lluvia del modelo; entre paneles, hacia dónde sopla el
+        viento (en rojo desde 30 km/h). La línea discontinua marca el momento actual.
       </p>
       <div className="forecast-models">
         {models.map(([code, snapshot]) => (
@@ -411,8 +455,12 @@ function EnsembleSection({ place }: { place: Place }) {
     <section className="forecast-section" aria-labelledby={`ens-${place.code}`}>
       <h3 id={`ens-${place.code}`}>Conjuntos (ensembles): temperatura a 850 hPa y precipitación</h3>
       <p className="forecast-note">
-        Cada línea gris es un miembro. La media solo se calcula cuando están todos los miembros;
-        la precipitación es la media de los miembros en ventanas de 6 h, con el valor del miembro más lluvioso.
+        Cada línea gris es un miembro. La media solo se calcula cuando están todos los miembros. La
+        línea negra discontinua es la media climática 1991–2020 a 850 hPa para ese día (reanálisis
+        NCEP/NCAR, suavizada a 11 días).
+        Precipitación: barras con la media de los miembros en 6 h y escala ajustada a esa media; el punto
+        hueco es el miembro más lluvioso (un triángulo en el borde si no cabe; su valor, en el tooltip).
+        Debajo, el porcentaje de miembros que dan al menos 1 mm en esas 6 h.
       </p>
       <div className="forecast-models">
         {ensembles.map(([code, snapshot]) => (
@@ -422,7 +470,7 @@ function EnsembleSection({ place }: { place: Place }) {
                 <h4>{snapshot.data.label}</h4>
                 <Freshness snapshot={snapshot} source={`Open-Meteo · ${runLabel(snapshot.data.run)}`} issued={false} />
                 <Suspense fallback={<p className="forecast-empty">Dibujando conjunto…</p>}>
-                  <EnsembleChart ensemble={snapshot.data} range={range} />
+                  <EnsembleChart ensemble={snapshot.data} range={range} climate={place.climate_850hPa ?? null} />
                 </Suspense>
               </>
             ) : (

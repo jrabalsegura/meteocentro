@@ -581,4 +581,15 @@ def test_forecast_api_returns_snapshots_with_staleness(db):
     assert madrid["ensembles"]["gfs"]["stale"] is False
     assert huetor["ensembles"] is None
     assert huetor["models"]["ecmwf"]["data"] == {"time": []}
-    assert {item["source"] for item in body["attribution"]} == {"aemet", "open_meteo"}
+    assert {item["source"] for item in body["attribution"]} == {
+        "aemet",
+        "ncep",
+        "open_meteo",
+    }
+    climate = madrid["climate_850hPa"]
+    assert climate["period"] == "1991-2020" and len(climate["values"]) == 365
+    # Late September at 850 hPa over Madrid: a plausible reference, not a forecast.
+    assert (
+        5 < climate["values"][269] < 20
+        and len(huetor["climate_850hPa"]["values"]) == 365
+    )

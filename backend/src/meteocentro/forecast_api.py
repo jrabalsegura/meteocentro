@@ -1,6 +1,9 @@
 """Read-only forecasts from the worker's snapshots; the browser never calls providers."""
 
+import json
 from datetime import timedelta
+from functools import cache
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -22,11 +25,32 @@ ATTRIBUTION = [
         "url": "https://www.aemet.es/es/nota_legal",
     },
     {
+        "source": "ncep",
+        "text": "Media climática 1991-2020 a 850 hPa: NCEP/NCAR Reanalysis 1 (NOAA PSL).",
+        "url": "https://psl.noaa.gov/data/gridded/data.ncep.reanalysis.html",
+    },
+    {
         "source": "open_meteo",
         "text": "Datos de modelos GFS (NOAA) y ECMWF servidos por Open-Meteo.com (CC BY 4.0).",
         "url": "https://open-meteo.com/",
     },
 ]
+
+
+@cache
+def climatology():
+    """Static 850 hPa reference (scripts/fetch_t850_climatology.py), never mixed with forecasts."""
+    document = json.loads(
+        (Path(__file__).parent / "reference/t850_climatology.json").read_text("utf-8")
+    )
+    return {
+        code: {
+            "period": document["period"],
+            "dataset": document["dataset"],
+            "values": place["values"],
+        }
+        for code, place in document["places"].items()
+    }
 
 
 @router.get("/forecasts")
@@ -67,6 +91,7 @@ def forecasts(db: Db):
                 }
                 if location.ensemble
                 else None,
+                "climate_850hPa": climatology().get(location.code),
             }
             for location in LOCATIONS.values()
         ],

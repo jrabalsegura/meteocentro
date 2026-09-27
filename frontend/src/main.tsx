@@ -362,6 +362,16 @@ function App() {
             Mapa
           </a>
           <a
+            className={isForecast ? "active" : ""}
+            href={tabHref("/previsiones")}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/previsiones");
+            }}
+          >
+            Previsiones
+          </a>
+          <a
             className={isTable ? "active" : ""}
             href={tabHref("/estaciones")}
             onClick={(e) => {
@@ -374,7 +384,6 @@ function App() {
           {[
             ["/diarios", "Datos diarios"],
             ["/historicos", "Históricos"],
-            ["/previsiones", "Previsiones"],
           ].map(([path, label]) => (
             <a
               key={path}

@@ -1011,8 +1011,13 @@ footer div {
   .site-header nav {
     width: 100%;
     height: 39px;
-    gap: 26px;
+    gap: 20px;
     font-size: 0.85rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .site-header nav a {
+    flex: none;
   }
   .site-header nav > span {
     font-size: 0.72rem;
@@ -1713,4 +1718,59 @@ footer div {
 @media (max-width: 700px) {
   .station-current .popup-value { font-size: 1.8rem; }
   .station-location { margin-top: 4px; }
+}
+
+/* Previsiones */
+.forecast-page { padding: 0 0 40px; max-width: 1500px; margin: 0 auto; }
+.forecast-places { display: flex; gap: 8px; margin: 4px 0 18px; flex-wrap: wrap; }
+.forecast-places button { font-weight: 600; }
+.forecast-places button.active { border-color: var(--purple); color: var(--purple); background: #f3f1fa; }
+.forecast-section { background: white; border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 18px; }
+.forecast-section h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.forecast-section h3 a { font-size: .75rem; font-weight: 400; margin-left: 6px; }
+.forecast-subheading { margin-top: 18px !important; }
+.forecast-meta, .forecast-note, .forecast-grid, .forecast-empty { color: var(--muted); font-size: .75rem; margin: 0 0 10px; line-height: 1.45; }
+.forecast-meta.stale { color: #9b3d12; font-weight: 600; }
+.forecast-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+.forecast-day { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.forecast-day h4 { margin: 0 0 6px; font-size: .85rem; text-transform: capitalize; }
+.forecast-day h4 span { color: var(--muted); font-weight: 400; text-transform: none; }
+.forecast-sky { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.forecast-sky > span { font-size: 1.7rem; line-height: 1; }
+.forecast-sky small { font-size: .7rem; color: var(--muted); line-height: 1.25; }
+.forecast-temps { margin: 6px 0; display: flex; gap: 10px; align-items: baseline; }
+.forecast-temps .max { font-size: 1.35rem; color: #b8461b; }
+.forecast-temps .min { font-size: 1rem; color: #1f5fae; }
+.forecast-day dl { display: grid; grid-template-columns: auto auto; gap: 2px 8px; margin: 0; font-size: .7rem; }
+.forecast-day dt { color: var(--muted); }
+.forecast-day dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.forecast-quarters { list-style: none; margin: 8px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; }
+.forecast-quarters li { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.forecast-quarters small { font-size: .6rem; color: var(--muted); }
+.forecast-hours { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.forecast-hours table { border-collapse: collapse; font-size: .72rem; font-variant-numeric: tabular-nums; }
+.forecast-hours th, .forecast-hours td { padding: 4px 7px; text-align: center; white-space: nowrap; border-bottom: 1px solid #eef1f5; }
+.forecast-hours tbody th, .forecast-hours thead th:first-child { position: sticky; left: 0; background: #f8fafc; text-align: left; color: var(--muted); font-weight: 500; z-index: 1; }
+.forecast-hours thead th { font-weight: 600; vertical-align: bottom; }
+.forecast-hours thead th small { display: block; font-weight: 400; color: var(--purple); text-transform: capitalize; }
+.forecast-hours .new-day { border-left: 2px solid var(--line); }
+.forecast-hours td.icon { font-size: 1.05rem; }
+.forecast-hours td.strong { font-weight: 700; }
+.forecast-hours td small { color: var(--muted); }
+.forecast-models { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.forecast-panel { min-width: 0; }
+.forecast-panel h4 { margin: 4px 0 2px; font-size: .95rem; }
+.forecast-chart { width: 100%; }
+.forecast-data summary { cursor: pointer; font-size: .75rem; color: var(--blue); }
+.forecast-table-scroll { overflow: auto; max-height: 340px; margin-top: 6px; }
+.forecast-data table { border-collapse: collapse; font-size: .7rem; width: 100%; font-variant-numeric: tabular-nums; }
+.forecast-data th, .forecast-data td { padding: 3px 6px; border-bottom: 1px solid #eef1f5; text-align: right; white-space: nowrap; }
+.forecast-data th { position: sticky; top: 0; background: #f8fafc; }
+.forecast-data td:first-child, .forecast-data th:first-child { text-align: left; }
+.forecast-attribution { font-size: .72rem; color: var(--muted); }
+.forecast-attribution p { margin: 4px 0; }
+@media (max-width: 700px) {
+  .forecast-section { padding: 12px; }
+  .forecast-models { grid-template-columns: minmax(0, 1fr); }
+  .forecast-days { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 }

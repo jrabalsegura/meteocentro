@@ -47,7 +47,7 @@ report = {
 }
 envfile = a.output / "test.env"
 envfile.write_text(
-    f"DATABASE_URL=postgresql+psycopg://meteocentro:synthetic-only@{names['db']}:5432/meteocentro\nENVIRONMENT=test\nAPP_ORIGIN=http://localhost:5173\nPRIVATE_READ=true\nAEMET_ENABLED=false\nMETEOCLIMATIC_ENABLED=false\nMETEOCLIMATIC_TERMS_REFERENCE=synthetic-offline-rehearsal\nPHASE7_SYNTHETIC_ONLY=yes\n"
+    f"DATABASE_URL=postgresql+psycopg://meteocentro:synthetic-only@{names['db']}:5432/meteocentro\nENVIRONMENT=test\nAPP_ORIGIN=http://localhost:5173\nPRIVATE_READ=true\nAEMET_ENABLED=false\nOPEN_METEO_ENABLED=false\nMETEOCLIMATIC_ENABLED=false\nMETEOCLIMATIC_TERMS_REFERENCE=synthetic-offline-rehearsal\nPHASE7_SYNTHETIC_ONLY=yes\n"
 )
 envfile.chmod(0o600)
 
@@ -161,9 +161,9 @@ try:
     app_run("python", "-m", "meteocentro.start", "migrate")
     app_run("alembic", "check")
     after_migration = json.loads(psql(engine, names["db"], SIGNATURE_SQL))
-    assert after_migration == {**before_migration, "revision": "0006_operations"}
+    assert after_migration == {**before_migration, "revision": "0007_forecasts"}
     report["migration_integrity"] = True
-    report["migration"] = "0005_administration -> 0006_operations, with synthetic records"
+    report["migration"] = "0005_administration -> 0007_forecasts, with synthetic records"
     start_role("web")
     url = "http://127.0.0.1:" + port(names["web"], 8080)
     # Use the browser's real origin, including an automatically allocated port.

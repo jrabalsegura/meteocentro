@@ -19,6 +19,7 @@ from meteocentro.auth import router as auth_router
 from meteocentro.config import get_settings
 from meteocentro.db import get_session
 from meteocentro.domain.eligibility import eligible_source_ids, eligible_station_ids
+from meteocentro.forecast_api import router as forecast_router
 from meteocentro.history_api import router as history_router
 from meteocentro.map_api import router as map_router
 from meteocentro.models import (
@@ -52,6 +53,7 @@ DbSession = Annotated[Session, Depends(get_session)]
 Freshness = Literal["fresh", "stale", "unknown", "historical_only"]
 app.include_router(map_router)
 app.include_router(history_router)
+app.include_router(forecast_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 

@@ -33,3 +33,7 @@ Los históricos detallados se construirán con los datos recopilados desde la pu
 Meteoclimatic publica [condiciones de uso](https://www.meteoclimatic.net/index/wp/cc_es.html) que requieren revisar el uso concreto de la app en la fase 0. Acceso público no equivale a autorización ilimitada. Los costes del servidor, dominio y cartografía se presupuestarán aparte; no son tarifas de estas fuentes meteorológicas.
 
 En el estado del proyecto, Wunderground se registrará como `deferred_cost`. Sus tareas permanecen como diseño opcional y no son requisitos para completar la primera versión.
+
+## Previsiones
+
+La pestaña de previsiones no añade costes. La predicción municipal usa la misma clave gratuita de AEMET: 8 llamadas cada 3 h, reservadas de la cuota diaria configurada. Los meteogramas y conjuntos vienen de Open-Meteo, gratuito para uso privado no comercial con atribución CC BY 4.0. Se estiman unas 700 llamadas ponderadas al día, frente a un límite de 10.000. Un uso comercial o con publicidad requeriría su plan de pago. Wetterzentrale no se usa como fuente de datos.

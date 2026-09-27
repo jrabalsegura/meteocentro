@@ -28,6 +28,7 @@ import { Access } from "./Access";
 import StationSummary from "./StationSummary";
 const AdminPage = lazy(() => import("./AdminPage"));
 const HistoryPage = lazy(() => import("./HistoryPage"));
+const ForecastPage = lazy(() => import("./ForecastPage"));
 const WeatherMap = lazy(() => import("./WeatherMap"));
 
 function readLocation() {
@@ -80,6 +81,7 @@ function App() {
   const hasDay = ["temperature", "humidity", "wind_speed"].includes(metric);
   const isHistory = route.path === "/historicos" || route.path === "/diarios";
   const isTable = route.path === "/estaciones";
+  const isForecast = route.path === "/previsiones";
   const detailId = route.path.startsWith("/estaciones/")
     ? route.path.split("/")[2]
     : null;
@@ -154,7 +156,8 @@ function App() {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
-    if (document.hidden) return () => controller.abort();
+    // The forecast tab loads its own snapshots; no observation queries there.
+    if (document.hidden || isForecast) return () => controller.abort();
     setBusy(true);
     setError("");
     const timer = window.setTimeout(() => {
@@ -180,7 +183,7 @@ function App() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, refresh]);
+  }, [query, refresh, isForecast]);
   useEffect(() => {
     setPage(0);
   }, [query]);
@@ -349,7 +352,7 @@ function App() {
         </a>
         <nav aria-label="Principal">
           <a
-            className={!isTable && !isHistory ? "active" : ""}
+            className={!isTable && !isHistory && !isForecast ? "active" : ""}
             href={tabHref("/")}
             onClick={(e) => {
               e.preventDefault();
@@ -371,6 +374,7 @@ function App() {
           {[
             ["/diarios", "Datos diarios"],
             ["/historicos", "Históricos"],
+            ["/previsiones", "Previsiones"],
           ].map(([path, label]) => (
             <a
               key={path}
@@ -393,7 +397,15 @@ function App() {
         </div>
       </header>
       <main id="content">
-        {isHistory ? (
+        {isForecast ? (
+          <Suspense fallback={<p>Abriendo previsiones…</p>}>
+            <ForecastPage
+              place={route.params.get("lugar")}
+              onPlace={(code) => navigate("/previsiones", { lugar: code })}
+              refresh={refresh}
+            />
+          </Suspense>
+        ) : isHistory ? (
           <Suspense fallback={<p>Abriendo archivo…</p>}>
             <HistoryPage
               stations={stations}

@@ -28,6 +28,9 @@ Consulta realizada el 9 de septiembre de 2026. Se utilizaron páginas de los pro
 - **S27** [Weather Underground, claves personales PWS](https://support.weather.com/s/article/Understand-and-Manage-Your-Personal-Weather-Station-PWS-API-Keys-WeatherUnderground?language=en_US). Ayuda oficial revisada en navegador: requisito de aportar datos desde una estación y límites de llamadas. Distingue la clave de consulta de la clave de subida de una estación.
 - **S28** [AEMET OpenData, preguntas frecuentes](https://opendata.aemet.es/centrodedescargas/docs/FAQs130917.pdf). Documento versión 1.4, fechado el 28 de julio de 2025. Confirma la gratuidad de OpenData y explica cómo solicitar su clave.
 
+- **S29** [AEMET predicción por municipios](https://opendata.aemet.es/dist/index.html) (`prediccion/especifica/municipio/diaria|horaria/{id}`). Contrastada el 27-9-2026 con respuestas reales y metadatos de Madrid y Huétor de Santillán. Se sirve en ISO-8859-15. Los metadatos no indican la zona horaria de `elaborado` y la publican «cuatro veces al día».
+- **S30** [Open-Meteo](https://open-meteo.com/en/docs), su [API de conjuntos](https://open-meteo.com/en/docs/ensemble-api), sus [condiciones](https://open-meteo.com/en/terms) y su [cómputo de llamadas](https://open-meteo.com/en/pricing). Gratuita para uso no comercial con CC BY 4.0: 10.000 llamadas al día, y más de 10 variables o de 2 semanas cuentan fraccionalmente como varias. Los ficheros `/data/{modelo}/static/meta.json` indican la pasada servida.
+
 ## Implementación y cartografía
 
 - **S16** [Podman Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) y [uso básico](https://docs.podman.io/en/latest/markdown/podman-quadlet-basic-usage.7.html). Referencia para rutas de unidades, arranque y funcionamiento con systemd. Validar las opciones contra la versión instalada.

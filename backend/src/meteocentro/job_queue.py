@@ -118,6 +118,8 @@ class Queue:
             products = [("current", 100, self.setting("poll_seconds"))]
             if self.provider_code == "aemet":
                 products.append(("inventory", 20, 86400))
+                if self.settings.aemet_forecast_enabled:
+                    products.append(("forecast", 10, self.settings.aemet_forecast_seconds))
             else:
                 products.append(("catalog", 20, 60))
             for kind, priority, interval in products:

@@ -413,3 +413,16 @@ class DailySummaryRevision(Base):
     summary_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("daily_summaries.id"), index=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     previous: Mapped[dict] = mapped_column(JSONB)
+
+
+class ForecastSnapshot(Base):
+    """Latest normalized forecast per source, place and product; never an observation."""
+
+    __tablename__ = "forecast_snapshots"
+    source: Mapped[str] = mapped_column(String(32), primary_key=True)
+    location: Mapped[str] = mapped_column(String(40), primary_key=True)
+    product: Mapped[str] = mapped_column(String(40), primary_key=True)
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)

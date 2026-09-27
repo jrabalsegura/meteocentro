@@ -3,7 +3,7 @@ VENV := backend/.venv/bin
 TEST_DB_PORT ?= 55432
 TEST_DATABASE_URL ?= postgresql+psycopg://meteocentro:test@127.0.0.1:$(TEST_DB_PORT)/meteocentro_test
 PY_TESTS := tests/test_phase1.py tests/test_phase2.py tests/test_phase3.py tests/test_phase4.py \
-	tests/test_phase5.py tests/test_phase6.py tests/test_phase7.py
+	tests/test_phase5.py tests/test_phase6.py tests/test_phase7.py tests/test_forecasts.py
 ADMIN ?= propietario
 export TEST_DATABASE_URL
 

@@ -17,6 +17,11 @@ export type Reading = {
   product: string;
   direction_degrees: number | null;
   flags: string[];
+  // Present on totals computed by the API from archived readings (rain today, etc.).
+  coverage?: number;
+  partial?: boolean;
+  derivation?: string;
+  notes?: string[];
 };
 export type Source = {
   id: string;
@@ -156,13 +161,22 @@ export const metricInfo: Record<
     colors: ["#546475", "#187787", "#2756a2", "#74469a", "#b32c60"],
     period: "AEMET: media de 10 min · Meteoclimatic: instantánea",
   },
-  rain: {
-    label: "Precipitación del intervalo",
+  // The fourth key is the «Lluvia» button; «rain» is its secondary last-hour view.
+  rain_today: {
+    label: "Lluvia acumulada hoy",
     short: "Lluvia",
     unit: "mm",
     scale: [0, 1, 5, 15, 30],
     colors: ["#586677", "#16718b", "#2a589e", "#6746a4", "#ae2867"],
-    period: "Total del intervalo · AEMET: 60 min anteriores",
+    period: "Desde las 00:00 de Madrid · AEMET: suma de sus horas · Meteoclimatic: incrementos de su contador",
+  },
+  rain: {
+    label: "Lluvia en la última hora",
+    short: "Última hora",
+    unit: "mm",
+    scale: [0, 1, 5, 15, 30],
+    colors: ["#586677", "#16718b", "#2a589e", "#6746a4", "#ae2867"],
+    period: "AEMET: 60 min anteriores · Meteoclimatic: incremento de su contador en ≈60 min",
   },
   wind_gust: {
     label: "Racha del intervalo",
@@ -247,7 +261,15 @@ export function isRecentMapReading(reading: Reading | null) {
 export function isOldMapReading(reading: Reading | null) {
   return reading != null && reading.age_seconds > 3600;
 }
+export const DAY_BASIS = "Europe/Madrid_day_so_far";
 export function period(value: Reading) {
+  const completeness = value.partial
+    ? ` · parcial, cobertura ${Math.round((value.coverage ?? 0) * 100)} %`
+    : "";
+  if (value.period_basis === DAY_BASIS && value.period_start)
+    return `Acumulado desde las ${clock(value.period_start)} · ${value.provider === "aemet" ? "suma de horas" : "incrementos del contador"}${completeness}`;
+  if (value.period_basis === "counter_increments" && value.period_start && value.period_end)
+    return `Incremento del contador: ${clock(value.period_start)} → ${clock(value.period_end)}${completeness}`;
   if (value.period_basis === "provider_day_timezone_unknown")
     return "Diario reportado · horario de reinicio desconocido; no comparable";
   if (value.period_start && value.period_end)

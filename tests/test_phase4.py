@@ -16,7 +16,7 @@ from meteocentro.models import (
     Station,
     StationSource,
 )
-from sqlalchemy import event
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
 
@@ -481,3 +481,180 @@ def test_list_day_extremes_follow_card_rules(db, catalog):
     assert day["minimum"]["value"] == pytest.approx(3.6)
     assert day["maximum"]["value"] == pytest.approx(36)
     assert "day" not in client.get("/api/v1/map?metric=rain").json()["items"][0]
+
+
+RAIN_NOW = datetime(2026, 10, 25, 12, 0, tzinfo=UTC)  # 13:00 CET, 25-hour civil day
+
+
+def rain_station(db, provider, name, readings):
+    """readings: (utc instant, metric, measurement, period start or None)."""
+    station = Station(
+        name=name,
+        province_code="28",
+        latitude=40.4,
+        longitude=-3.7,
+        moderation_status="active",
+    )
+    db.add(station)
+    db.flush()
+    source = StationSource(
+        station_id=station.id,
+        provider_id=provider.id,
+        external_id=name,
+        status="enabled",
+        capabilities={"current": True},
+    )
+    db.add(source)
+    db.flush()
+    for instant, metric, measurement, start in readings:
+        db.add(
+            Observation(
+                source_id=source.id,
+                product="synthetic",
+                observed_at=instant,
+                fetched_at=instant,
+                period_start=start,
+                period_end=instant if start else None,
+                period_basis="preceding_60_minutes_UTC" if start else None,
+                metrics={metric: measurement},
+                quality={},
+                payload_hash="0" * 64,
+                normalizer_version="rain-fixture",
+            )
+        )
+    db.commit()
+    return station
+
+
+def counter(value):
+    return {
+        "value": value,
+        "unit": "mm",
+        "kind": "daily_counter",
+        "period_basis": "provider_day_timezone_unknown",
+        "plausibility_flags": [],
+    }
+
+
+def quarter_hours(first, last):
+    instant = first
+    while instant <= last:
+        yield instant
+        instant += timedelta(minutes=15)
+
+
+@pytest.fixture
+def rain_catalog(db, catalog, monkeypatch):
+    from meteocentro import map_api
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return RAIN_NOW
+
+    monkeypatch.setattr(map_api, "datetime", Frozen)
+    client, _, (aemet, meteoclimatic) = catalog
+    utc_midnight = datetime(2026, 10, 25, tzinfo=UTC)
+    # Counter reset at UTC midnight (02:00 CEST), as observed in real data.
+    readings = []
+    for instant in quarter_hours(datetime(2026, 10, 24, 21, 45, tzinfo=UTC), RAIN_NOW):
+        if instant < utc_midnight:
+            value = 5.0 + 0.1 * (
+                (instant - datetime(2026, 10, 24, 21, 45, tzinfo=UTC))
+                / timedelta(minutes=15)
+            )
+        else:
+            value = 0.1 * ((instant - utc_midnight) / timedelta(minutes=15))
+        readings.append((instant, "rain_daily", counter(round(value, 1)), None))
+    rain_station(db, meteoclimatic, "Reinicio UTC", readings)
+    # A descent far from midnight is not a reset: no total is invented.
+    glitch = [
+        (
+            instant,
+            "rain_daily",
+            counter(0.0 if instant.hour == 11 and instant.minute == 30 else 1.0),
+            None,
+        )
+        for instant in quarter_hours(
+            datetime(2026, 10, 24, 22, 0, tzinfo=UTC), RAIN_NOW
+        )
+    ]
+    rain_station(db, meteoclimatic, "Descenso", glitch)
+    gap = [
+        (instant, "rain_daily", counter(2.0), None)
+        for instant in quarter_hours(
+            datetime(2026, 10, 24, 22, 0, tzinfo=UTC), RAIN_NOW
+        )
+        if not 3 <= instant.hour < 6
+    ]
+    rain_station(db, meteoclimatic, "Hueco", gap)
+    hours = [
+        (
+            end,
+            "rain",
+            {
+                "value": 0.5,
+                "unit": "mm",
+                "kind": "interval_total",
+                "plausibility_flags": [],
+            },
+            end - timedelta(hours=1),
+        )
+        for end in (
+            datetime(2026, 10, 24, 22, tzinfo=UTC) + timedelta(hours=n)
+            for n in range(15)
+        )
+        if end.hour != 5
+    ]
+    rain_station(db, aemet, "AEMET horaria", hours)
+    return client
+
+
+def test_rain_today_per_network_with_utc_reset_gap_and_descent(rain_catalog):
+    result = rain_catalog.get("/api/v1/map?metric=rain_today").json()
+    readings = {item["name"]: item["reading"] for item in result["items"]}
+    reset = readings["Reinicio UTC"]
+    # 5.1→5.8 before the reset, then 0.0→4.8; rain before the reset is not re-added.
+    assert reset["value"] == pytest.approx(5.5)
+    assert datetime.fromisoformat(reset["period_start"]) == datetime(
+        2026, 10, 24, 22, tzinfo=UTC
+    )
+    assert (
+        reset["partial"] is False
+        and reset["derivation"] == "meteoclimatic_counter_increments"
+    )
+    assert readings["Descenso"] is None
+    assert readings["Hueco"]["value"] == 0 and readings["Hueco"]["partial"] is True
+    assert "reading_gap" in readings["Hueco"]["notes"]
+    aemet = readings["AEMET horaria"]
+    # 14 hours since Madrid midnight, one missing, the one before midnight excluded.
+    assert aemet["value"] == pytest.approx(6.5)
+    assert aemet["partial"] is True and aemet["coverage"] == pytest.approx(
+        13 / 14, abs=1e-4
+    )
+    assert result["extremes"]["comparable"] is True
+    assert result["extremes"]["maximum"]["name"] == "AEMET horaria"
+
+
+def test_rain_last_hour_from_counter_increments(rain_catalog):
+    result = rain_catalog.get("/api/v1/map?metric=rain").json()
+    readings = {item["name"]: item["reading"] for item in result["items"]}
+    hour = readings["Reinicio UTC"]
+    assert hour["value"] == pytest.approx(0.4)
+    assert [
+        datetime.fromisoformat(hour[k]) for k in ("period_start", "period_end")
+    ] == [
+        RAIN_NOW - timedelta(hours=1),
+        RAIN_NOW,
+    ]
+    assert readings["Descenso"] is None
+    # AEMET's last hour is its stored reading (none here), never re-derived.
+    assert readings["AEMET horaria"] is None
+
+
+def test_station_card_includes_derived_rain(rain_catalog, db):
+    station = db.scalar(select(Station).where(Station.name == "Reinicio UTC"))
+    result = rain_catalog.get(f"/api/v1/stations/{station.id}/current").json()
+    metrics = {reading["metric"]: reading["value"] for reading in result["readings"]}
+    assert metrics["rain_today"] == pytest.approx(5.5)
+    assert metrics["rain"] == pytest.approx(0.4)

@@ -21,9 +21,12 @@ from meteocentro.models import (
     Station,
     StationSource,
 )
+from meteocentro.rain import DAY_BASIS, RAIN_METRICS, derived_rows
 
 router = APIRouter(prefix="/api/v1")
-Metric = Literal["temperature", "humidity", "wind_speed", "wind_gust", "rain", "rain_rate"]
+Metric = Literal[
+    "temperature", "humidity", "wind_speed", "wind_gust", "rain", "rain_today", "rain_rate"
+]
 Freshness = Literal["all", "fresh", "stale", "unknown", "historical_only"]
 PREFERENCE = {"aemet": 0, "meteoclimatic": 1}
 MAX_STATIONS = 5000
@@ -95,6 +98,8 @@ def value_read(metric, observation, source, provider, now):
         "product": observation.product,
         "direction_degrees": direction_value if metric.startswith("wind_") else None,
         "flags": flags,
+        # Read-time derivations (rain.py) say how they were computed and how complete.
+        **{key: raw[key] for key in ("coverage", "partial", "derivation", "notes") if key in raw},
     }
 
 
@@ -179,12 +184,16 @@ def project(rows, now, networks=()):
     return list(stations.values())
 
 
+def comparison_key(v):
+    # Today's accumulations share the civil day even if each one ends at its last reading.
+    if v["period_basis"] == DAY_BASIS:
+        return (v["unit"], v["kind"], DAY_BASIS, v["period_end"].astimezone(MADRID).date())
+    return (v["unit"], v["kind"], v["period_basis"], v["period_start"], v["period_end"])
+
+
 def comparisons(items, truncated):
     readings = [(s, s["reading"]) for s in items if s["freshness"] == "fresh"]
-    groups = {
-        (v["unit"], v["kind"], v["period_basis"], v["period_start"], v["period_end"])
-        for _, v in readings
-    }
+    groups = {comparison_key(v) for _, v in readings}
     comparable = not truncated and len(groups) == 1 and len(readings) >= 2
 
     def extreme(which):
@@ -347,7 +356,10 @@ def map_data(
         )
     candidates = candidates.order_by(Station.name, Station.id).limit(MAX_STATIONS + 1)
     now = datetime.now(UTC)
-    items = project(read_rows(db, candidates, metric), now, network or ())
+    rows = read_rows(db, candidates, metric)
+    if metric in RAIN_METRICS:
+        rows += derived_rows(db, rows, now, {metric})
+    items = project(rows, now, network or ())
     capped = len(items) > MAX_STATIONS
     counts = dict(Counter(s["freshness"] for s in items[:MAX_STATIONS]))
     filtered = [
@@ -377,7 +389,8 @@ def map_data(
 def current(station_id: UUID, db: Annotated[Session, Depends(get_session)]):
     candidates = select(Station.id).where(Station.id == station_id)
     now = datetime.now(UTC)
-    items = project(read_rows(db, candidates), now)
+    rows = read_rows(db, candidates)
+    items = project(rows + derived_rows(db, rows, now, RAIN_METRICS), now)
     if not items:
         raise HTTPException(404, detail={"code": "station_not_found"})
     return {**items[0], "generated_at": now, "day_summaries": day_summaries(db, station_id, now)}

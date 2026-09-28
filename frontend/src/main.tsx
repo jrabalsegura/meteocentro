@@ -78,6 +78,7 @@ function App() {
     : "temperature";
   const info = metricInfo[metric];
   // Daily extremes exist for these variables; rain keeps its own interval semantics.
+  const isRain = metric === "rain" || metric === "rain_today";
   const hasDay = ["temperature", "humidity", "wind_speed"].includes(metric);
   const isHistory = route.path === "/historicos" || route.path === "/diarios";
   const isTable = route.path === "/estaciones";
@@ -455,8 +456,8 @@ function App() {
               .map(([key, value]) => (
                 <button
                   key={key}
-                  className={metric === key ? "active" : ""}
-                  aria-pressed={metric === key}
+                  className={metric === key || (key === "rain_today" && isRain) ? "active" : ""}
+                  aria-pressed={metric === key || (key === "rain_today" && isRain)}
                   onClick={() => navigate(route.path, { metric: key })}
                 >
                   <span aria-hidden="true">
@@ -473,6 +474,22 @@ function App() {
                 </button>
               ))}
           </div>
+          {isRain && (
+            <div className="segmented rain-period" role="group" aria-label="Periodo de la lluvia">
+              {[
+                ["rain_today", "Hoy"],
+                ["rain", "Última hora"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  aria-pressed={metric === key}
+                  onClick={() => navigate(route.path, { metric: key })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <details
             className="filter-panel"
             open={filtersOpen}
@@ -853,12 +870,14 @@ function App() {
             racha no se usan como velocidad actual.
           </p>
         )}
-        {metric === "rain" && (
+        {isRain && (
           <p className="context-note">
-            Meteoclimatic aporta un contador diario de horario desconocido,
-            disponible en su ficha. No se representa como lluvia horaria. La
-            intensidad y la racha del intervalo aún no están disponibles en
-            las fuentes integradas.
+            AEMET publica la lluvia de cada hora; su acumulado de hoy es la suma
+            de las horas desde las 00:00 de Madrid. Meteoclimatic publica un
+            contador diario que cada estación reinicia a su hora (a menudo a
+            medianoche UTC): se calculan solo los incrementos entre lecturas
+            consecutivas, sin sumar el contador. «Parcial» indica horas o
+            lecturas que faltan; los huecos no se rellenan.
           </p>
         )}
         <section className="extremes" aria-label="Extremos comparables">

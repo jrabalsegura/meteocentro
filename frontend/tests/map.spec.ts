@@ -656,4 +656,14 @@ test("el listado muestra mínima y máxima de hoy en temperatura, humedad y vien
   await expect(table.getByRole("row").nth(1)).toContainText("SINTÉTICA 0000");
   await page.getByRole("button", { name: /Lluvia/ }).click();
   await expect(table.getByRole("columnheader", { name: /Mín\. hoy/ })).toHaveCount(0);
+  // «Lluvia» opens today's accumulation; the last hour is the secondary view.
+  const period = page.getByRole("group", { name: "Periodo de la lluvia" });
+  await expect(period.getByRole("button", { name: "Hoy" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/metric=rain_today/);
+  await expect(page.locator(".legend")).toContainText("Lluvia acumulada hoy");
+  await expect(table.getByRole("row", { name: /SINTÉTICA 0000/ })).toContainText("Acumulado desde las 00:00");
+  await period.getByRole("button", { name: "Última hora" }).click();
+  await expect(page).toHaveURL(/metric=rain(&|$)/);
+  await expect(page.getByRole("button", { name: /Lluvia/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".legend")).toContainText("Lluvia en la última hora");
 });

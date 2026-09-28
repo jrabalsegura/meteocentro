@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import type { Current, Reading, Station } from "../src/data";
 export const observed = "2026-09-19T08:00:00+00:00";
 export function reading(index: number, metric = "temperature"): Reading {
+  const rain = metric === "rain" || metric === "rain_today";
   return {
     metric,
     value:
@@ -15,15 +16,15 @@ export function reading(index: number, metric = "temperature"): Reading {
         ? "°C"
         : metric === "humidity"
           ? "%"
-          : metric === "rain"
+          : rain
             ? "mm"
             : "km/h",
-    kind: metric === "rain" ? "interval_total" : "instant",
+    kind: rain ? "interval_total" : "instant",
     observed_at: observed,
     fetched_at: "2026-09-19T08:03:00+00:00",
-    period_start: metric === "rain" ? "2026-09-19T07:00:00+00:00" : null,
-    period_end: metric === "rain" ? observed : null,
-    period_basis: metric === "rain" ? "preceding_60_minutes_UTC" : null,
+    period_start: rain ? (metric === "rain" ? "2026-09-19T07:00:00+00:00" : "2026-09-18T22:00:00+00:00") : null,
+    period_end: rain ? observed : null,
+    period_basis: rain ? (metric === "rain" ? "preceding_60_minutes_UTC" : "Europe/Madrid_day_so_far") : null,
     age_seconds: 600,
     stale_after_seconds: 5400,
     freshness: index === 4 ? "stale" : "fresh",

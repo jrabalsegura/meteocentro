@@ -22,6 +22,8 @@
 
 **Ajuste posterior:** en producción, 88 totales de Meteoclimatic salían parciales solo porque su feed llega cada 15–35 min y el umbral de hueco era de 30 min (p. ej., Madrid - Guindalera, 04:38 → 05:13). Como los incrementos del contador son exactos en esos pasos, el umbral pasa a 60 min, con una prueba nueva de feed irregular.
 
+**Segundo despliegue:** CI del PR #22 en verde y fusionado como `71b13c24a748a0ba435f953ce65f4a5a125899ea`. Mismo procedimiento en `remote`: imágenes desde el SHA exacto; `prepare` en un directorio nuevo, en el que solo cambian las imágenes de API, worker y web; 6 unidades; `apply` sin migración, con la comprobación HTTP/SPA/protección correcta. `state/current` apunta al intento del 28-9-2026 13:54 UTC y `state/previous` a `5f10cbc`. Antes/después: 82.630 observaciones, 208 estaciones, cero exclusiones, una cuenta, esquema `0007_forecasts`; `operations` en `ok`; HTTPS 200 en `/` y 401 sin sesión en la API. En producción, los totales parciales de «hoy» pasan de 88 a 4 (todos de Meteoclimatic con huecos reales de más de 60 min); «última hora»: 127 estaciones de Meteoclimatic y 49 de AEMET, ninguna parcial.
+
 ## Conjuntos también para Huétor de Santillán — 28 de septiembre de 2026
 
 **Petición:** añadir los ensembles de Huétor de Santillán. Rama `claude/ensembles-huetor`.

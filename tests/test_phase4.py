@@ -588,6 +588,15 @@ def rain_catalog(db, catalog, monkeypatch):
         if not 3 <= instant.hour < 6
     ]
     rain_station(db, meteoclimatic, "Hueco", gap)
+    # Irregular feed: a 45-minute step is normal cadence, not a gap.
+    irregular = [
+        (instant, "rain_daily", counter(1.0 if instant.hour >= 8 else 0.0), None)
+        for instant in quarter_hours(
+            datetime(2026, 10, 24, 22, 0, tzinfo=UTC), RAIN_NOW
+        )
+        if not (instant.hour == 7 and instant.minute in (30, 45))
+    ]
+    rain_station(db, meteoclimatic, "Irregular", irregular)
     hours = [
         (
             end,
@@ -626,6 +635,10 @@ def test_rain_today_per_network_with_utc_reset_gap_and_descent(rain_catalog):
     assert readings["Descenso"] is None
     assert readings["Hueco"]["value"] == 0 and readings["Hueco"]["partial"] is True
     assert "reading_gap" in readings["Hueco"]["notes"]
+    assert (
+        readings["Irregular"]["value"] == 1
+        and readings["Irregular"]["partial"] is False
+    )
     aemet = readings["AEMET horaria"]
     # 14 hours since Madrid midnight, one missing, the one before midnight excluded.
     assert aemet["value"] == pytest.approx(6.5)

@@ -26,9 +26,10 @@ HOUR = timedelta(hours=1)
 # A window starts at the reading nearest its nominal start, within this margin.
 DAY_ANCHOR = timedelta(minutes=20)
 HOUR_ANCHOR = timedelta(minutes=10)
-# Longer steps are unobserved time: rain there is still counted if the counter
-# rose, but coverage drops and the total is marked partial.
-MAX_STEP = timedelta(minutes=30)
+# The Meteoclimatic feed arrives every 15–35 min in production. Increments stay exact
+# across such steps; longer ones are treated as unobserved time: rain there is still
+# counted if the counter rose, but coverage drops and the total is marked partial.
+MAX_STEP = timedelta(minutes=60)
 
 
 def plausible_reset(before, after):

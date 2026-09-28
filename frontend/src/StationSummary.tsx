@@ -27,6 +27,24 @@ export default function StationSummary({
       <h3>Resumen del día <span>{date(station.generated_at).split(",")[0]}</span></h3>
       <div className="daily-grid">
         {metrics.map(({ label, reported, metric, field, unit }) => {
+          // The API's rain-today total (AEMET hours or Meteoclimatic counter increments)
+          // replaces the raw counter, whose reset hour varies by station.
+          const rainToday = field === "total" ? readings.find((r) =>
+            r.metric === "rain_today" && r.value != null &&
+            madridDay(r.observed_at) === today &&
+            (!source || r.source_id === source),
+          ) : undefined;
+          if (rainToday)
+            return (
+              <article className="daily-stat" key={field}>
+                <h4>{label}</h4>
+                <strong>{number(rainToday.value)} <span>{unit}</span></strong>
+                <small>{rainToday.provider === "aemet" ? "Suma de horas de hoy" : "Incrementos del contador hoy"}</small>
+                <small>{rainToday.provider.toUpperCase()}</small>
+                <small>Actualizada: {date(rainToday.observed_at)}</small>
+                <small>{rainToday.partial ? "Parcial" : "Hasta ahora"} · cobertura {Math.round((rainToday.coverage ?? 0) * 100)} %</small>
+              </article>
+            );
           const report = readings.find((r) =>
             r.metric === reported && r.value != null &&
             madridDay(r.observed_at) === today &&

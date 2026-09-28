@@ -259,6 +259,16 @@ main {
 .variables button.active span {
   color: var(--purple);
 }
+.rain-period {
+  box-shadow: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 8px 16px;
+  gap: 4px;
+}
+.rain-period button {
+  border-radius: 6px;
+}
 .filter-panel {
   padding: 14px 18px;
 }

@@ -90,6 +90,74 @@ async function mockHistory(page: Page) {
       },
     }),
   );
+  await page.route("**/api/v1/stations/*/overview*", (route) => {
+    const days = Array.from({ length: 30 }, (_, i) => {
+      const day = new Date(Date.UTC(2026, 7, 29 + i))
+        .toISOString()
+        .slice(0, 10);
+      return {
+        day,
+        pending: false,
+        temperature:
+          i === 10
+            ? null
+            : {
+                minimum: 12 + (i % 5),
+                maximum: 26 + (i % 7),
+                minimum_at: `${day}T05:00:00Z`,
+                maximum_at: `${day}T14:30:00Z`,
+                coverage: 0.95,
+                unit: "°C",
+              },
+        rain:
+          i < 3
+            ? null
+            : {
+                total: i % 6 === 0 ? 4.2 : 0,
+                coverage: 1,
+                partial: false,
+                derivation: "x",
+                notes: [],
+              },
+      };
+    });
+    const period = (count: number, rain: number) => ({
+      from: days[30 - count].day,
+      to: days[29].day,
+      days: count,
+      temperature: {
+        unit: "°C",
+        minimum: 12,
+        minimum_at: "2026-09-27T05:00:00Z",
+        minimum_day: "2026-09-27",
+        maximum: 32,
+        maximum_at: "2026-09-25T14:30:00Z",
+        maximum_day: "2026-09-25",
+        days_with_data: count === 30 ? 29 : count,
+      },
+      rain: {
+        total: rain,
+        days_with_data: count === 30 ? 27 : count,
+        rain_days: rain ? 1 : 0,
+        partial: count === 30,
+      },
+      pending_days: 0,
+    });
+    return route.fulfill({
+      json: {
+        provider: "meteoclimatic",
+        external_id: "SYN-0",
+        archive_first: "2026-09-23T19:00:00Z",
+        latest_observation: "2026-09-29T04:45:00Z",
+        days,
+        periods: {
+          yesterday: period(1, 0),
+          week: period(7, 4.2),
+          month: period(30, 16.8),
+        },
+      },
+    });
+  });
   await page.route("**/api/v1/stations/*/records*", (route) =>
     route.fulfill({
       json: {
@@ -128,6 +196,7 @@ for (const width of [1440, 390])
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(`/historicos?station=${id}`);
+    await page.getByRole("button", { name: "Evolución", exact: true }).click();
     await expect(page.locator(".history-chart svg")).toBeVisible();
     await expect(page.locator(".coverage-strip")).toContainText("1 sept 2026");
     expect(
@@ -171,6 +240,7 @@ test("históricos: fallo, recuperación y exclusión no dejan gráfico anterior"
 }) => {
   const state = await mockHistory(page);
   await page.goto(`/historicos?station=${id}`);
+  await page.getByRole("button", { name: "Evolución", exact: true }).click();
   await expect(page.locator(".history-chart svg")).toBeVisible();
   state.fail = true;
   await page.getByRole("button", { name: "48 h", exact: true }).click();
@@ -215,6 +285,7 @@ test("históricos: conserva el origen elegido al refrescar y señala su retirada
     }),
   );
   await page.goto(`/historicos?station=${id}`);
+  await page.getByRole("button", { name: "Evolución", exact: true }).click();
   await expect(page.locator(".history-chart svg")).toBeVisible();
   await page.getByLabel("Origen de la serie").selectOption("source-alt");
   await page.clock.runFor(61000);
@@ -226,3 +297,39 @@ test("históricos: conserva el origen elegido al refrescar y señala su retirada
     page.getByLabel("Origen de la serie").locator("option:checked"),
   ).toHaveText("Origen retirado · elige otro");
 });
+
+for (const width of [1440, 390])
+  test(`históricos ${width}: resumen de ayer, 7 y 30 días como vista principal`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    await mockHistory(page);
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.goto(`/historicos?station=${id}`);
+    await expect(
+      page.getByRole("button", { name: "Resumen", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const cards = page.locator(".overview-card");
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(0)).toContainText("Ayer");
+    await expect(cards.nth(1)).toContainText("4,2");
+    await expect(cards.nth(2)).toContainText("suma parcial");
+    await expect(cards.nth(2)).toContainText("no cuentan como cero");
+    await expect(page.locator(".overview-latest")).toContainText("29 sept");
+    await expect(page.getByLabel("Variable histórica")).toHaveCount(0);
+    await page
+      .locator(".overview-plot svg")
+      .hover({ position: { x: 100, y: 60 } });
+    await expect(page.locator(".overview-tooltip")).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBeTruthy();
+    await page.screenshot({
+      path: `../runtime/phase5/overview-${width}.png`,
+      fullPage: true,
+    });
+    expect(errors).toEqual([]);
+  });

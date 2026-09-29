@@ -671,3 +671,166 @@ def test_station_card_includes_derived_rain(rain_catalog, db):
     metrics = {reading["metric"]: reading["value"] for reading in result["readings"]}
     assert metrics["rain_today"] == pytest.approx(5.5)
     assert metrics["rain"] == pytest.approx(0.4)
+
+
+def temperature_day(db, source, day, minimum, maximum, coverage=1.0, channel="a"):
+    from meteocentro.history import VERSION, civil_window
+    from meteocentro.models import DailySummary
+
+    start, end = civil_window(day)
+    db.add(
+        DailySummary(
+            source_id=source.id,
+            product="synthetic",
+            period_start=start,
+            period_end=end,
+            period_basis="Europe/Madrid",
+            method=VERSION,
+            channel=channel,
+            coverage=coverage,
+            metrics={
+                "temperature": {
+                    "unit": "°C",
+                    "kind": "instant",
+                    "minimum": minimum,
+                    "maximum": maximum,
+                    "minimum_at": (start + timedelta(hours=5)).isoformat(),
+                    "maximum_at": (start + timedelta(hours=15)).isoformat(),
+                    "coverage": coverage,
+                }
+            },
+            fetched_at=start,
+            provisional=False,
+            provenance={},
+        )
+    )
+
+
+@pytest.fixture
+def overview_catalog(db, catalog, monkeypatch):
+    """Frozen at 25-10 12:00 UTC: yesterday is the Madrid civil day 24-10 (CEST)."""
+    from datetime import date
+
+    from meteocentro import history_api
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return RAIN_NOW
+
+    monkeypatch.setattr(history_api, "datetime", Frozen)
+    client, _, (aemet, meteoclimatic) = catalog
+    reset = datetime(2026, 10, 24, tzinfo=UTC)
+    readings = []
+    for instant in quarter_hours(datetime(2026, 10, 23, 21, 45, tzinfo=UTC), RAIN_NOW):
+        if instant < reset:
+            value = 3.0  # Previous day's counter, reset at UTC midnight.
+        elif instant < datetime(2026, 10, 25, tzinfo=UTC):
+            value = min(0.1 * ((instant - reset) / timedelta(minutes=15)), 2.4)
+        else:
+            value = 0.0
+        readings.append((instant, "rain_daily", counter(round(value, 1)), None))
+    counter_station = rain_station(db, meteoclimatic, "Contador", readings)
+    hours = [
+        (
+            end,
+            "rain",
+            {
+                "value": 0.5,
+                "unit": "mm",
+                "kind": "interval_total",
+                "plausibility_flags": [],
+            },
+            end - timedelta(hours=1),
+        )
+        for end in (
+            datetime(2026, 10, 23, 23, tzinfo=UTC) + timedelta(hours=n)
+            for n in range(24)
+        )
+        if end.hour != 5
+    ]
+    hourly_station = rain_station(db, aemet, "Horaria", hours)
+    source = db.scalar(
+        select(StationSource).where(StationSource.station_id == counter_station.id)
+    )
+    temperature_day(db, source, date(2026, 10, 24), 8.5, 19.0)
+    temperature_day(db, source, date(2026, 10, 20), 4.0, 22.5, coverage=0.5)
+    # Two channels on the same day are ambiguous: that day has no temperature.
+    temperature_day(db, source, date(2026, 10, 21), -9.0, 30.0)
+    temperature_day(db, source, date(2026, 10, 21), -8.0, 29.0, channel="b")
+    db.commit()
+    return client, counter_station, hourly_station
+
+
+def test_overview_days_and_periods_per_network(overview_catalog):
+    client, counter_station, hourly_station = overview_catalog
+    result = client.get(f"/api/v1/stations/{counter_station.id}/overview").json()
+    assert len(result["days"]) == 30 and result["days"][-1]["day"] == "2026-10-24"
+    yesterday = result["periods"]["yesterday"]
+    # The reset adds its new value once; increments 0.0→2.4, nothing from 3.0 re-added.
+    assert yesterday["rain"]["total"] == pytest.approx(2.4)
+    assert yesterday["rain"]["partial"] is False
+    assert yesterday["temperature"]["minimum"] == 8.5
+    assert yesterday["temperature"]["maximum"] == 19.0
+    week = result["periods"]["week"]
+    assert week["rain"]["days_with_data"] == 1 and week["rain"]["partial"] is True
+    assert week["temperature"]["maximum"] == 22.5
+    assert week["temperature"]["maximum_day"] == "2026-10-20"
+    assert week["temperature"]["days_with_data"] == 2
+    # The ambiguous day never supplies the -9.0 extreme.
+    assert result["periods"]["month"]["temperature"]["minimum"] == 4.0
+    days = {d["day"]: d for d in result["days"]}
+    assert days["2026-10-21"]["temperature"] is None
+    assert days["2026-10-10"]["rain"] is None  # before the archive: missing, not zero
+
+    hourly = client.get(f"/api/v1/stations/{hourly_station.id}/overview").json()
+    rain = hourly["periods"]["yesterday"]["rain"]
+    assert rain["total"] == pytest.approx(11.5)
+    assert rain["partial"] is True and rain["coverage"] == pytest.approx(
+        23 / 24, abs=1e-4
+    )
+    assert hourly["periods"]["yesterday"]["temperature"] is None
+
+
+def test_overview_respects_source_exclusion(db, overview_catalog):
+    client, counter_station, _ = overview_catalog
+    source = db.scalar(
+        select(StationSource).where(StationSource.station_id == counter_station.id)
+    )
+    db.add(Exclusion(source_id=source.id))
+    db.commit()
+    assert (
+        client.get(f"/api/v1/stations/{counter_station.id}/overview").status_code == 404
+    )
+
+
+def test_only_days_before_yesterday_count_as_overdue(db, overview_catalog):
+    from datetime import date
+
+    from meteocentro.models import AggregateDirtyDay
+
+    client, counter_station, _ = overview_catalog
+    source = db.scalar(
+        select(StationSource).where(StationSource.station_id == counter_station.id)
+    )
+    db.query(AggregateDirtyDay).delete()
+    for day in (date(2026, 10, 25), date(2026, 10, 24), date(2026, 10, 20)):
+        db.add(AggregateDirtyDay(source_id=source.id, day=day))
+    db.commit()
+    result = client.get(
+        f"/api/v1/stations/{counter_station.id}/series",
+        params={
+            "from": "2026-10-25T00:00:00Z",
+            "to": "2026-10-25T12:00:00Z",
+            "metric": "rain_daily",
+        },
+    ).json()
+    assert result["availability"]["pending_days"] == 3
+    assert result["availability"]["overdue_days"] == 1
+    days = {
+        d["day"]: d
+        for d in client.get(f"/api/v1/stations/{counter_station.id}/overview").json()[
+            "days"
+        ]
+    }
+    assert days["2026-10-20"]["pending"] and days["2026-10-24"]["pending"]

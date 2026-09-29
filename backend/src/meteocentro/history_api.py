@@ -109,11 +109,19 @@ def availability(db, source, metric):
         .select_from(AggregateDirtyDay)
         .where(AggregateDirtyDay.source_id == source.id)
     )
+    # Today and yesterday are re-marked every hour by design; older ones mean a backlog.
+    yesterday = datetime.now(UTC).astimezone(MADRID).date() - timedelta(days=1)
+    overdue = db.scalar(
+        select(func.count())
+        .select_from(AggregateDirtyDay)
+        .where(AggregateDirtyDay.source_id == source.id, AggregateDirtyDay.day < yesterday)
+    )
     return {
         "raw": {"first": raw[0], "last": raw[1]},
         "hour": {"first": hourly[0], "last": hourly[1]},
         "day": {"first": daily[0], "last": daily[1]},
         "pending_days": dirty,
+        "overdue_days": overdue,
     }
 
 
@@ -493,6 +501,129 @@ def records(station_id: UUID, db: Db, metric: Metric = "temperature", source: UU
         "notice": (
             "Extremos del archivo disponible; diarios del proveedor con cobertura desconocida."
         ),
+    }
+
+
+OVERVIEW_PERIODS = (("yesterday", 1), ("week", 7), ("month", 30))
+
+
+def day_temperature(rows):
+    """One civil day from its local summary; ambiguous channels are not combined."""
+    rows = [r for r in rows if r.metrics["temperature"].get("kind") == "instant"]
+    if len(rows) != 1:
+        return None
+    stats = rows[0].metrics["temperature"]
+    if stats.get("minimum") is None and stats.get("maximum") is None:
+        return None
+    return {
+        field: stats.get(field)
+        for field in ("minimum", "maximum", "minimum_at", "maximum_at", "coverage", "unit")
+    }
+
+
+def period_summary(days):
+    temperature = [d for d in days if d["temperature"]]
+    rain = [d for d in days if d["rain"]]
+    low = [d for d in temperature if d["temperature"]["minimum"] is not None]
+    high = [d for d in temperature if d["temperature"]["maximum"] is not None]
+    coldest = min(low, key=lambda d: d["temperature"]["minimum"], default=None)
+    warmest = max(high, key=lambda d: d["temperature"]["maximum"], default=None)
+    return {
+        "from": days[0]["day"],
+        "to": days[-1]["day"],
+        "days": len(days),
+        "temperature": {
+            "unit": temperature[0]["temperature"]["unit"],
+            "minimum": coldest and coldest["temperature"]["minimum"],
+            "minimum_at": coldest and coldest["temperature"]["minimum_at"],
+            "minimum_day": coldest and coldest["day"],
+            "maximum": warmest and warmest["temperature"]["maximum"],
+            "maximum_at": warmest and warmest["temperature"]["maximum_at"],
+            "maximum_day": warmest and warmest["day"],
+            "days_with_data": len(temperature),
+            "coverage": sum(d["temperature"]["coverage"] or 0 for d in temperature) / len(days),
+        }
+        if temperature
+        else None,
+        # Days without a usable total are missing, never zero: the sum is then partial.
+        "rain": {
+            "unit": "mm",
+            "total": round(sum(d["rain"]["total"] for d in rain), 2),
+            "days_with_data": len(rain),
+            "rain_days": sum(1 for d in rain if d["rain"]["total"] >= 0.2),
+            "coverage": sum(d["rain"]["coverage"] for d in rain) / len(days),
+            "partial": len(rain) < len(days) or any(d["rain"]["partial"] for d in rain),
+        }
+        if rain
+        else None,
+        "pending_days": sum(1 for d in days if d["pending"]),
+    }
+
+
+@router.get("/stations/{station_id}/overview")
+def overview(station_id: UUID, db: Db, source: UUID | None = None):
+    """Last complete civil days at a glance: extremes and rain per day and period.
+
+    Temperatures come from the local daily summaries; rain is derived per civil day
+    from the stored readings with the same rules as today's total (rain.py).
+    """
+    from meteocentro.rain import DAY_ANCHOR, civil_day_rain, rain_points
+
+    origin, provider = selected_source(db, station_id, source)
+    now = datetime.now(UTC)
+    today = now.astimezone(MADRID).date()
+    longest = max(days for _, days in OVERVIEW_PERIODS)
+    calendar = [today - timedelta(days=n) for n in range(longest, 0, -1)]
+    start, end = civil_window(calendar[0])[0], civil_window(today)[0]
+    summaries = defaultdict(list)
+    for row in db.scalars(
+        select(DailySummary).where(
+            DailySummary.source_id == origin.id,
+            DailySummary.method == VERSION,
+            DailySummary.period_start >= start,
+            DailySummary.period_start < end,
+            DailySummary.provisional.is_(False),
+            DailySummary.metrics.has_key("temperature"),
+        )
+    ):
+        summaries[row.period_start.astimezone(MADRID).date()].append(row)
+    pending = set(
+        db.scalars(
+            select(AggregateDirtyDay.day).where(
+                AggregateDirtyDay.source_id == origin.id,
+                AggregateDirtyDay.day >= calendar[0],
+                AggregateDirtyDay.day < today,
+            )
+        )
+    )
+    points = rain_points(db, origin.id, start - DAY_ANCHOR, end)
+    days = []
+    for day in calendar:
+        left, right = civil_window(day)
+        window = [p for p in points if left - DAY_ANCHOR <= p.observed_at <= right]
+        days.append(
+            {
+                "day": day,
+                "period_start": left,
+                "period_end": right,
+                "temperature": day_temperature(summaries[day]),
+                "rain": civil_day_rain(window, left, right, provider.code),
+                "pending": day in pending,
+            }
+        )
+    latest = db.execute(
+        select(func.min(Observation.observed_at), func.max(Observation.observed_at)).where(
+            Observation.source_id == origin.id
+        )
+    ).one()
+    return {
+        **provenance(origin, provider),
+        "generated_at": now,
+        "period_basis": "Europe/Madrid",
+        "archive_first": latest[0],
+        "latest_observation": latest[1],
+        "days": days,
+        "periods": {key: period_summary(days[-count:]) for key, count in OVERVIEW_PERIODS},
     }
 
 

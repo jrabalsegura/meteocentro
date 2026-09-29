@@ -11,6 +11,7 @@ import {
 } from "./data";
 const WeatherMap = lazy(() => import("./WeatherMap"));
 const HistoryChart = lazy(() => import("./HistoryChart"));
+const HistoryOverview = lazy(() => import("./HistoryOverview"));
 export type HistoricalPoint = {
   channel: string;
   product: string;
@@ -48,7 +49,7 @@ export type HistoricalPoint = {
 type Availability = Record<
   "raw" | "hour" | "day",
   { first: string | null; last: string | null }
-> & { pending_days: number };
+> & { pending_days: number; overdue_days?: number };
 type HistoricalPage = {
   items: HistoricalPoint[];
   next_offset: number | null;
@@ -107,6 +108,7 @@ const metrics = [
   "rain_rate",
 ];
 const labels: Record<string, string> = {
+  overview: "Resumen",
   series: "Evolución",
   daily: "Diarios",
   month: "Meses",
@@ -120,6 +122,17 @@ function dayLabel(value: string | null | undefined) {
         year: "numeric",
         month: "short",
         day: "numeric",
+      }).format(new Date(value))
+    : "Sin datos disponibles";
+}
+function instantLabel(value: string | null | undefined) {
+  return value
+    ? new Intl.DateTimeFormat("es-ES", {
+        timeZone: "Europe/Madrid",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
       }).format(new Date(value))
     : "Sin datos disponibles";
 }
@@ -147,7 +160,7 @@ export default function HistoryPage({
   const [detail, setDetail] = useState<Current | null>(null);
   const [source, setSource] = useState("");
   const [metric, setMetric] = useState("temperature");
-  const [mode, setMode] = useState("series");
+  const [mode, setMode] = useState("overview");
   const [view, setView] = useState("chart");
   const [hours, setHours] = useState(24);
   const [method, setMethod] = useState("all");
@@ -227,7 +240,7 @@ export default function HistoryPage({
   useEffect(() => {
     setResult(null);
     setRecords([]);
-    if (!stationId || !source || networkView) return;
+    if (!stationId || !source || networkView || mode === "overview") return;
     if (
       days <= 0 ||
       days > (mode === "month" || mode === "year" ? 3660 : 366)
@@ -492,20 +505,22 @@ export default function HistoryPage({
                 </select>
               </label>
             )}
-            <label>
-              Variable histórica
-              <select
-                aria-label="Variable histórica"
-                value={metric}
-                onChange={(e) => setMetric(e.target.value)}
-              >
-                {metrics.map((m) => (
-                  <option key={m} value={m}>
-                    {metricNames[m]}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {mode !== "overview" && (
+              <label>
+                Variable histórica
+                <select
+                  aria-label="Variable histórica"
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value)}
+                >
+                  {metrics.map((m) => (
+                    <option key={m} value={m}>
+                      {metricNames[m]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           {stationId && (
             <>
@@ -520,7 +535,18 @@ export default function HistoryPage({
                   </button>
                 ))}
               </div>
-              {mode !== "records" && (
+              {mode === "overview" && (
+                <Suspense
+                  fallback={<p role="status">Preparando el resumen…</p>}
+                >
+                  <HistoryOverview
+                    stationId={stationId}
+                    source={source}
+                    refresh={refresh + retry}
+                  />
+                </Suspense>
+              )}
+              {mode !== "records" && mode !== "overview" && (
                 <>
                   <div
                     className="history-periods"
@@ -584,17 +610,19 @@ export default function HistoryPage({
                 <>
                   <div className="coverage-strip">
                     <div>
-                      <span>DETALLE INTRADIARIO</span>
-                      <strong>{dayLabel(result.availability.raw.first)}</strong>
+                      <span>ÚLTIMO REGISTRO</span>
+                      <strong>
+                        {instantLabel(result.availability.raw.last)}
+                      </strong>
                       <small>
-                        hasta {dayLabel(result.availability.raw.last)}
+                        Archivo desde {dayLabel(result.availability.raw.first)}
                       </small>
                     </div>
                     <div>
-                      <span>RESÚMENES DIARIOS</span>
-                      <strong>{dayLabel(result.availability.day.first)}</strong>
+                      <span>RESÚMENES DIARIOS HASTA</span>
+                      <strong>{dayLabel(result.availability.day.last)}</strong>
                       <small>
-                        hasta {dayLabel(result.availability.day.last)}
+                        Desde {dayLabel(result.availability.day.first)}
                       </small>
                     </div>
                     <div>
@@ -613,10 +641,11 @@ export default function HistoryPage({
                       </small>
                     </div>
                   </div>
-                  {result.availability.pending_days > 0 && (
+                  {(result.availability.overdue_days ?? 0) > 0 && (
                     <p className="notice">
-                      Hay {result.availability.pending_days} días pendientes de
-                      recalcular. Los agregados pueden estar desactualizados.
+                      Hay {result.availability.overdue_days} días anteriores a
+                      ayer pendientes de recalcular. Sus agregados pueden estar
+                      desactualizados.
                     </p>
                   )}
                   <div className="chart-toolbar">
@@ -644,7 +673,13 @@ export default function HistoryPage({
                       )}
                   </div>
                   {!result.export_allowed && (
-                    <p>Exportación no autorizada para este origen.</p>
+                    <p className="chart-note">
+                      La licencia de{" "}
+                      {result.provider === "meteoclimatic"
+                        ? "Meteoclimatic"
+                        : "este origen"}{" "}
+                      no permite exportar sus datos.
+                    </p>
                   )}
                   {!result.items.length ? (
                     <div className="history-empty">

@@ -220,3 +220,87 @@ def derived_rows(db, rows, now, metrics):
             readings = counter_readings(points, start, metrics)
         result += [(station, source, provider, name, obs) for name, obs in readings]
     return result
+
+
+def civil_day_rain(points, start, end, provider_code):
+    """Total of one complete civil day [start, end), or None if unusable.
+
+    Same rules as today's total: AEMET sums its non-overlapping hours inside the day;
+    Meteoclimatic adds counter increments from the reading nearest local midnight,
+    with at most one reset. Unobserved time lowers coverage; nothing is extrapolated.
+    """
+    window = (end - start).total_seconds()
+    if provider_code == "aemet":
+        hours, last_end, notes = [], None, set()
+        for point in sorted(points, key=lambda p: p.period_end or p.observed_at):
+            value = valid_value(point.rain) if point.rain else None
+            if (
+                value is None
+                or point.rain.get("kind") != "interval_total"
+                or point.period_start is None
+                or point.period_start < start
+                or point.period_end > end
+            ):
+                continue
+            if last_end and point.period_start < last_end:
+                notes.add("overlapping_intervals")
+                continue
+            hours.append((point, value))
+            last_end = point.period_end
+        if not hours:
+            return None
+        covered = sum((p.period_end - p.period_start).total_seconds() for p, _ in hours)
+        total, derivation = sum(value for _, value in hours), "aemet_hourly_sum"
+    else:
+        chain = [
+            (point.observed_at, value, point)
+            for point in points
+            if point.counter
+            and point.observed_at <= end
+            and (value := valid_value(point.counter)) is not None
+        ]
+        found = counter_increments(chain, start, DAY_ANCHOR)
+        if found is None:
+            return None
+        total, first, (last, _, _), share, notes = found
+        covered = share * (last - first).total_seconds()
+        notes = notes - {"counter_reset"}
+        derivation = "meteoclimatic_counter_increments"
+    coverage = min(covered / window, 1.0)
+    return {
+        "total": round(total, 2),
+        "unit": "mm",
+        "coverage": round(coverage, 4),
+        "partial": coverage < 0.999 or bool(notes),
+        "derivation": derivation,
+        "notes": sorted(notes),
+    }
+
+
+def rain_points(db, source_id, since, until):
+    """Rain readings of one origin, with UTC instants (psycopg may return Madrid)."""
+    return [
+        SimpleNamespace(
+            observed_at=observed.astimezone(UTC),
+            period_start=period_start.astimezone(UTC) if period_start else None,
+            period_end=period_end.astimezone(UTC) if period_end else None,
+            rain=rain,
+            counter=counter,
+        )
+        for observed, period_start, period_end, rain, counter in db.execute(
+            select(
+                Observation.observed_at,
+                Observation.period_start,
+                Observation.period_end,
+                Observation.metrics["rain"],
+                Observation.metrics["rain_daily"],
+            )
+            .where(
+                Observation.source_id == source_id,
+                Observation.observed_at >= since,
+                Observation.observed_at <= until,
+                or_(Observation.metrics.has_key("rain"), Observation.metrics.has_key("rain_daily")),
+            )
+            .order_by(Observation.observed_at, Observation.id)
+        )
+    ]

@@ -170,6 +170,9 @@ for (const width of [1440, 390]) {
     await page.getByRole("link", { name: "Previsiones" }).click();
     await expect(page).toHaveURL(/\/previsiones/);
     await expect(page.getByRole("heading", { name: "Previsión para Madrid" })).toBeVisible();
+    // The map may legitimately query before the click on a slow runner; only
+    // requests made while the forecast tab is open count.
+    const fromForecast = state.requests.length;
     const days = page.locator(".forecast-day");
     await expect(days).toHaveCount(3);
     await expect(days.first()).toContainText("Hoy");
@@ -187,7 +190,9 @@ for (const width of [1440, 390]) {
     await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
     await page.getByText("Ver datos en tabla (cada 6 h)").first().click();
     await expect(page.locator(".forecast-data table").first()).toBeVisible();
-    expect(state.requests.some((r) => r.startsWith("/api/v1/map"))).toBe(false);
+    expect(
+      state.requests.slice(fromForecast).some((r) => r.startsWith("/api/v1/map")),
+    ).toBe(false);
 
     await page.getByRole("tab", { name: "Huétor de Santillán" }).click();
     await expect(page).toHaveURL(/lugar=huetor-santillan/);

@@ -66,6 +66,25 @@ type AemetHourly = {
     snow?: number | null;
   }[];
 };
+type Level = "verde" | "amarillo" | "naranja" | "rojo";
+type Warning = {
+  phenomenon: string;
+  phenomenon_code: string;
+  level: Level;
+  onset: string;
+  expires: string;
+  threshold: string | null;
+  probability: string | null;
+  description: string | null;
+  instruction: string | null;
+};
+type Warnings = {
+  zone: string;
+  zone_name: string | null;
+  link: string;
+  // level null: unknown (stale snapshot or beyond what AEMET has issued), never green.
+  days: { date: string; level: Level | null; warnings: Warning[] }[];
+};
 export type ModelForecast = {
   model: string;
   label: string;
@@ -90,6 +109,7 @@ type Place = {
   name: string;
   aemet_url: string;
   aemet: { daily: Snapshot<AemetDaily>; hourly: Snapshot<AemetHourly> };
+  warnings: Snapshot<Warnings>;
   models: Record<string, Snapshot<ModelForecast>>;
   ensembles: Record<string, Snapshot<EnsembleForecast>> | null;
   climate_850hPa?: Climate | null;
@@ -241,6 +261,73 @@ function AemetDays({ snapshot }: { snapshot: NonNullable<Snapshot<AemetDaily>> }
           })}
       </div>
     </>
+  );
+}
+
+const LEVEL_LABEL: Record<Level, string> = {
+  verde: "Sin avisos",
+  amarillo: "Aviso amarillo",
+  naranja: "Aviso naranja",
+  rojo: "Aviso rojo",
+};
+const LEVEL_DOT: Record<Level, string> = { verde: "🟢", amarillo: "🟡", naranja: "🟠", rojo: "🔴" };
+const localDay = (value: string) => new Date(value).toLocaleDateString("sv-SE", { timeZone: zone });
+
+/** Hours within the card's day; the other day is named when the warning crosses midnight. */
+function warningHours(warning: Warning, day: string) {
+  const edge = (instant: Date, end: boolean) => {
+    const label = hourOnly.format(instant);
+    // AEMET ends at hh:59:59; one second later reads as a round hour (00:00 -> 24:00).
+    const previous = new Date(instant.getTime() - 1000);
+    if (end && label === "00:00" && localDay(previous.toISOString()) === day) return "24:00";
+    return localDay(instant.toISOString()) === day ? label : `${dayOfHour.format(instant)} ${label}`;
+  };
+  const from = edge(new Date(warning.onset), false);
+  const to = edge(new Date(Date.parse(warning.expires) + 1000), true);
+  return from === "00:00" && to === "24:00" ? "Todo el día" : `${from}–${to}`;
+}
+
+function AemetWarnings({ snapshot }: { snapshot: NonNullable<Snapshot<Warnings>> }) {
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: zone });
+  return (
+    <div className="warning-days">
+      {snapshot.data.days.map((day) => {
+        const date = new Date(`${day.date}T00:00:00Z`);
+        return (
+          <article className={`warning-day level-${day.level ?? "unknown"}`} key={day.date}>
+            <h4>
+              {day.date === today ? "Hoy" : weekday.format(date)} <span>{shortDay.format(date)}</span>
+            </h4>
+            <p className="warning-level">
+              <span aria-hidden="true">{day.level ? LEVEL_DOT[day.level] : "⚪"}</span>{" "}
+              {day.level ? LEVEL_LABEL[day.level] : "Sin datos"}
+            </p>
+            {day.warnings.length > 0 && (
+              <ul>
+                {day.warnings.map((w) => {
+                  // AEMET's text usually starts by repeating the threshold.
+                  const repeated = w.threshold ? `${w.threshold}.` : null;
+                  const text = repeated && w.description?.startsWith(repeated)
+                    ? w.description.slice(repeated.length).trim()
+                    : w.description;
+                  return (
+                  <li key={`${w.phenomenon_code}-${w.onset}-${w.level}`} className={`level-${w.level}`}>
+                    <strong>
+                      <span aria-hidden="true">{LEVEL_DOT[w.level]}</span> {w.phenomenon}
+                    </strong>
+                    <span className="warning-hours">{warningHours(w, day.date)}</span>
+                    {w.threshold && <small>{w.threshold}</small>}
+                    {w.probability && <small>Probabilidad {w.probability}</small>}
+                    {text && <small className="warning-text">{text}</small>}
+                  </li>
+                  );
+                })}
+              </ul>
+            )}
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -550,6 +637,20 @@ export default function ForecastPage({
               </>
             ) : (
               <Missing what="Predicción diaria de AEMET" />
+            )}
+            <h3 className="forecast-subheading">
+              Avisos{place.warnings?.data.zone_name ? ` · zona ${place.warnings.data.zone_name}` : ""}{" "}
+              <a href={place.warnings?.data.link ?? "https://www.aemet.es/es/eltiempo/prediccion/avisos"} target="_blank" rel="noreferrer">
+                ver en aemet.es
+              </a>
+            </h3>
+            {place.warnings ? (
+              <>
+                <Freshness snapshot={place.warnings} source="AEMET Meteoalerta" />
+                <AemetWarnings snapshot={place.warnings} />
+              </>
+            ) : (
+              <Missing what="Avisos de AEMET" />
             )}
             <h3 className="forecast-subheading">Próximas horas</h3>
             {place.aemet.hourly ? (

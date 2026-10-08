@@ -62,6 +62,49 @@ const snapshot = <T,>(data: T, stale = false) => ({
   data,
 });
 
+// Official-time instant of a day offset, as AEMET writes it (+02:00 in October).
+const at = (n: number, time: string) => `${nextDay(n)}T${time}+02:00`;
+
+function warnings(code: string) {
+  const rain = {
+    phenomenon: "Lluvias",
+    phenomenon_code: "PR",
+    level: "amarillo",
+    onset: at(1, "22:00:00"),
+    expires: at(2, "05:59:59"),
+    threshold: "Precipitación acumulada en una hora: 15 mm",
+    probability: "40%-70%",
+    description: "Precipitación acumulada en una hora: 15 mm. Chubascos tormentosos.",
+    instruction: "Esté atento.",
+  };
+  const heat = {
+    ...rain,
+    phenomenon: "Temperaturas máximas",
+    phenomenon_code: "AT",
+    level: "naranja",
+    onset: at(1, "13:00:00"),
+    expires: at(1, "20:59:59"),
+    threshold: "Temperatura máxima: 39 ºC",
+    description: null,
+  };
+  const madrid = code === "madrid";
+  return snapshot(
+    {
+      zone: madrid ? "722802" : "611801",
+      zone_name: madrid ? "Metropolitana y Henares" : "Cuenca del Genil",
+      link: "https://www.aemet.es/es/eltiempo/prediccion/avisos?w=hoy&l=722802",
+      days: madrid
+        ? [
+            { date: nextDay(0), level: "verde", warnings: [] },
+            { date: nextDay(1), level: "naranja", warnings: [heat, rain] },
+            { date: nextDay(2), level: "amarillo", warnings: [rain] },
+          ]
+        : [0, 1, 2].map((n) => ({ date: nextDay(n), level: null, warnings: [] })),
+    },
+    !madrid,
+  );
+}
+
 function place(code: string, name: string, withEnsemble: boolean) {
   const hours = Array.from({ length: 30 }, (_, i) => ({
     time: new Date((Math.floor(Date.now() / 3600000) + i) * 3600000).toISOString(),
@@ -114,6 +157,7 @@ function place(code: string, name: string, withEnsemble: boolean) {
       ),
       hourly: snapshot({ issued_at: "", link: "", hours, windows: [] }),
     },
+    warnings: warnings(code),
     models: {
       gfs: snapshot(model("gfs", "GFS (NOAA) 0,25°")),
       ecmwf: code === "madrid" ? snapshot(model("ecmwf", "ECMWF IFS 0,25°")) : null,
@@ -181,6 +225,20 @@ for (const width of [1440, 390]) {
     await expect(days.nth(2).locator(".min")).toHaveText("—");
     await expect(days.nth(2)).toContainText("1800 m");
     await expect(page.locator(".forecast-hours")).toContainText("Ip");
+    // Warnings: green today, the worst level per day, hours in official time.
+    const warningDays = page.locator(".warning-day");
+    await expect(warningDays).toHaveCount(3);
+    await expect(warningDays.first()).toHaveClass(/level-verde/);
+    await expect(warningDays.first()).toContainText("Sin avisos");
+    await expect(warningDays.nth(1)).toHaveClass(/level-naranja/);
+    await expect(warningDays.nth(1)).toContainText("Temperaturas máximas");
+    await expect(warningDays.nth(1)).toContainText("13:00–21:00");
+    await expect(warningDays.nth(1)).toContainText("Temperatura máxima: 39 ºC");
+    await expect(warningDays.nth(2)).toHaveClass(/level-amarillo/);
+    await expect(warningDays.nth(2).locator(".warning-hours")).toContainText("06:00");
+    await expect(warningDays.nth(2).locator(".warning-text")).toHaveText("Chubascos tormentosos.");
+    await expect(page.getByText("Avisos · zona Metropolitana y Henares")).toBeVisible();
+    await page.locator(".warning-days").screenshot({ path: `test-results/avisos-${width}.png` });
     await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
     await expect(page.getByText("GEFS (NOAA) 0,5° · 31 miembros")).toBeVisible();
     await expect(page.locator(".forecast-chart svg text", { hasText: "Media 1991–2020" })).toHaveCount(2);
@@ -199,6 +257,9 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("heading", { name: "Previsión para Huétor de Santillán" })).toBeVisible();
     await expect(page.getByText("Conjuntos (ensembles)")).toBeVisible();
     await expect(page.getByText("ECMWF: todavía no hay datos")).toBeVisible();
+    // A stale warnings snapshot is unknown, never green.
+    await expect(page.locator(".warning-day.level-unknown")).toHaveCount(3);
+    await expect(page.locator(".warning-day.level-verde")).toHaveCount(0);
     await expect(page.locator(".forecast-meta.stale").first()).toContainText(
       "sin actualizar recientemente",
     );

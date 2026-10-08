@@ -35,6 +35,9 @@ class Location:
     longitude: float
     ensemble: bool
     aemet_url: str
+    # Meteoalerta: autonomous community bundle and warning zone (see alerts.py).
+    warning_area: str
+    warning_zone: str
 
 
 LOCATIONS = {
@@ -48,6 +51,8 @@ LOCATIONS = {
             -3.70256,
             True,
             "https://www.aemet.es/es/eltiempo/prediccion/municipios/madrid-id28079",
+            "72",
+            "722802",
         ),
         Location(
             "huetor-santillan",
@@ -57,6 +62,8 @@ LOCATIONS = {
             -3.51634,
             True,
             "https://www.aemet.es/es/eltiempo/prediccion/municipios/huetor-de-santillan-id18099",
+            "61",
+            "611801",
         ),
     )
 }

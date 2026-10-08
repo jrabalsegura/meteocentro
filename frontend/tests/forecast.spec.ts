@@ -246,6 +246,11 @@ for (const width of [1440, 390]) {
     await page.getByRole("button", { name: "16 días" }).click();
     await expect(page.getByRole("button", { name: "16 días" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
+    await page.getByRole("button", { name: "4 días" }).click();
+    await expect(page.getByRole("button", { name: "4 días" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
+    await page.locator(".forecast-chart").first().screenshot({ path: `test-results/meteograma-4d-${width}.png` });
+    await page.locator(".forecast-chart").nth(2).screenshot({ path: `test-results/conjunto-${width}.png` });
     await page.getByText("Ver datos en tabla (cada 6 h)").first().click();
     await expect(page.locator(".forecast-data table").first()).toBeVisible();
     expect(

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     aemet_enabled: bool = True
     aemet_api_key: SecretStr | None = None
     aemet_poll_seconds: int = Field(default=900, ge=900)
-    aemet_daily_http_budget: int = Field(default=400, ge=3)
+    aemet_daily_http_budget: int = Field(default=1500, ge=3)
     aemet_current_reserve: int = Field(default=220, ge=0)
     aemet_minute_http_budget: int = Field(default=20, ge=1, le=40)
     aemet_concurrency: int = Field(default=1, ge=1, le=2)

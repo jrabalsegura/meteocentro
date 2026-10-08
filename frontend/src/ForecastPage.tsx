@@ -454,7 +454,8 @@ const DAYS_KEY = "meteocentro.forecast.days";
 
 function storedDays() {
   try {
-    return localStorage.getItem(DAYS_KEY) === "16" ? 16 : 10;
+    const value = Number(localStorage.getItem(DAYS_KEY));
+    return [4, 16].includes(value) ? value : 10;
   } catch {
     return 10;
   }
@@ -488,7 +489,7 @@ function ModelSection({ place }: { place: Place }) {
       <div className="forecast-section-head">
         <h3 id={`models-${place.code}`}>Meteogramas GFS y ECMWF</h3>
         <div className="forecast-range" role="group" aria-label="Horizonte">
-          {[10, 16].map((value) => (
+          {[4, 10, 16].map((value) => (
             <button
               key={value}
               aria-pressed={days === value}

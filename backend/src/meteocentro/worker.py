@@ -79,6 +79,10 @@ def run_claim(queue, claim, *, adapter_factory=None, after_chunk=None):
                 from meteocentro.forecast import run_aemet_forecast
 
                 result, cursor = run_aemet_forecast(queue, claim, adapter)
+            elif claim.kind == "warnings":
+                from meteocentro.alerts import run_aemet_warnings
+
+                result, cursor = run_aemet_warnings(queue, claim, adapter)
             elif queue.provider_code == "meteoclimatic" and claim.kind == "catalog":
                 result, cursor = MeteoclimaticCatalog(queue, claim, adapter).run()
             else:
@@ -161,7 +165,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--once",
-        choices=("current", "inventory", "catalog", "history", "forecast"),
+        choices=("current", "inventory", "catalog", "history", "forecast", "warnings"),
         help="one due job; respects scheduling, leases and quotas",
     )
     parser.add_argument("--provider", choices=("aemet", "meteoclimatic"))

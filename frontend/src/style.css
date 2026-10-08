@@ -1741,6 +1741,20 @@ footer div {
 .forecast-subheading { margin-top: 18px !important; }
 .forecast-meta, .forecast-note, .forecast-grid, .forecast-empty { color: var(--muted); font-size: .75rem; margin: 0 0 10px; line-height: 1.45; }
 .forecast-meta.stale { color: #9b3d12; font-weight: 600; }
+.warning-days { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.warning-day { border: 1px solid var(--line); border-left-width: 5px; border-radius: 8px; padding: 8px 12px; }
+.warning-day h4 { margin: 0 0 4px; font-size: .85rem; text-transform: capitalize; }
+.warning-day h4 span { color: var(--muted); font-weight: 400; text-transform: none; }
+.warning-level { margin: 0; font-size: .8rem; font-weight: 600; }
+.warning-day ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.warning-day li { display: grid; gap: 1px; font-size: .75rem; padding-top: 6px; border-top: 1px solid var(--line); }
+.warning-day li small { color: var(--muted); font-size: .7rem; line-height: 1.35; }
+.warning-hours { font-variant-numeric: tabular-nums; }
+.warning-day.level-verde { border-left-color: #2e9d4f; background: #f1faf3; }
+.warning-day.level-amarillo { border-left-color: #e8c000; background: #fffbe0; }
+.warning-day.level-naranja { border-left-color: #f07d00; background: #fff1e0; }
+.warning-day.level-rojo { border-left-color: #d0201a; background: #fdeceb; }
+.warning-day.level-unknown { border-left-color: #b8c1cc; background: #f6f7f9; }
 .forecast-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
 .forecast-day { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 .forecast-day h4 { margin: 0 0 6px; font-size: .85rem; text-transform: capitalize; }
@@ -1783,6 +1797,7 @@ footer div {
   .forecast-section { padding: 12px; }
   .forecast-models { grid-template-columns: minmax(0, 1fr); }
   .forecast-days { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .warning-days { grid-template-columns: 1fr; gap: 8px; }
 }
 .forecast-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .forecast-range { display: flex; gap: 4px; }

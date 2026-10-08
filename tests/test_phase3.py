@@ -657,6 +657,7 @@ def test_disabled_network_cannot_claim_or_write_app_keeps_other_source(mc, db):
         "aemet:current",
         "aemet:inventory",
         "aemet:forecast",
+        "aemet:warnings",
         "meteoclimatic:current",
         "meteoclimatic:catalog",
     }

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from meteocentro.alerts import days as warning_days
 from meteocentro.db import get_session
 from meteocentro.forecast import DETERMINISTIC, ENSEMBLES, LOCATIONS
 from meteocentro.models import ForecastSnapshot
@@ -18,10 +19,13 @@ router = APIRouter(prefix="/api/v1")
 Db = Annotated[Session, Depends(get_session)]
 # About three missed refreshes of each job (AEMET every 3 h, Open-Meteo every hour).
 STALE_AFTER = {"aemet": timedelta(hours=9), "open_meteo": timedelta(hours=4)}
+# Warnings change within hours; past this age the three days are shown as unknown.
+WARNINGS_STALE_AFTER = timedelta(hours=6)
 ATTRIBUTION = [
     {
         "source": "aemet",
-        "text": "© AEMET. Predicción municipal elaborada por la Agencia Estatal de Meteorología.",
+        "text": "© AEMET. Predicción municipal y avisos Meteoalerta elaborados por la Agencia "
+        "Estatal de Meteorología.",
         "url": "https://www.aemet.es/es/nota_legal",
     },
     {
@@ -58,6 +62,23 @@ def forecasts(db: Db):
     now = db.scalar(select(func.now()))
     snapshots = {(s.source, s.location, s.product): s for s in db.scalars(select(ForecastSnapshot))}
 
+    def warnings(location):
+        item = snapshots.get(("aemet", location, "warnings"))
+        if item is None:
+            return None
+        stale = now - item.fetched_at > WARNINGS_STALE_AFTER
+        return {
+            "issued_at": item.issued_at,
+            "fetched_at": item.fetched_at,
+            "stale": stale,
+            "data": {
+                "zone": item.payload["zone"],
+                "zone_name": item.payload["zone_name"],
+                "link": item.payload["link"],
+                "days": warning_days(item.payload, now, stale),
+            },
+        }
+
     def snapshot(source, location, product):
         item = snapshots.get((source, location, product))
         if item is None:
@@ -91,6 +112,7 @@ def forecasts(db: Db):
                 }
                 if location.ensemble
                 else None,
+                "warnings": warnings(location.code),
                 "climate_850hPa": climatology().get(location.code),
             }
             for location in LOCATIONS.values()

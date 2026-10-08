@@ -171,7 +171,7 @@ class AemetAdapter(ProviderAdapter):
     def close(self):
         self.http.close()
 
-    def request(self, url, *, authenticated=False):
+    def request(self, url, *, authenticated=False, raw=False):
         checked_url(url)
         self.reserve()
         # Only the API envelope receives the key; no query strings and no redirects.
@@ -189,6 +189,8 @@ class AemetAdapter(ProviderAdapter):
                     if time.monotonic() - started > 90:
                         raise IngestionError("download_deadline")
                     chunks.append(chunk)
+                if raw:
+                    return b"".join(chunks)
                 decoded = decode_json(b"".join(chunks))
                 if authenticated and isinstance(decoded, dict):
                     try:

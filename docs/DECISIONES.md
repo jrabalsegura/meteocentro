@@ -138,4 +138,12 @@ La revisión de precios está en [COSTE_Y_ACCESO_DATOS.md](COSTE_Y_ACCESO_DATOS.
 - Configuración: `AEMET_FORECAST_ENABLED`, `AEMET_FORECAST_SECONDS` (≥ 3.600), `OPEN_METEO_ENABLED` y `OPEN_METEO_FORECAST_SECONDS` (≥ 1.800). El ensayo de contenedores desactiva Open-Meteo para no usar la red.
 - Ajuste pedido por el usuario: la pestaña va justo después de «Mapa» y el meteograma imita la lectura de Wetterzentrale. Temperatura y lluvia comparten panel con dos ejes rotulados (excepción deliberada a la regla de un solo eje, por convención de los meteogramas), y el horizonte es de 10 días por defecto. Los símbolos del cielo son una estimación visual a partir de las capas de nubes y la precipitación del modelo, no un producto de AEMET ni de Open-Meteo.
 - Media climática de 850 hPa en los conjuntos: NCEP/NCAR Reanalysis 1, media diaria 1991–2020 (NOAA PSL, dominio público), interpolación bilineal de la rejilla de 2,5° y suavizado circular de 11 días. Es una referencia estática que no se descarga periódicamente; se regenera solo con su script. Se prefiere a ERA5 porque ERA5 exige una cuenta de Copernicus y Open-Meteo no sirve niveles de presión en su archivo. Es una referencia de rejilla gruesa, no una estadística de la estación.
+
+## Avisos meteorológicos — 8 de octubre de 2026
+
+- Petición del usuario: avisos de AEMET de hoy, mañana y pasado mañana en la previsión de Madrid y Huétor de Santillán.
+- Fuente: Meteoalerta en CAP de AEMET OpenData (`avisos_cap/ultimoelaborado/area`), con la misma clave y cuota que el resto de AEMET. Zonas fijadas en el código: 722802 (Madrid) y 611801 (Huétor de Santillán).
+- Cada paquete es una foto completa de lo vigente. Sin aviso dentro de los días que cubre la foto = verde. Sin foto reciente (más de 6 h) o fuera de cobertura = desconocido, nunca verde.
+- Frecuencia de 2 h: AEMET elabora hacia las 09–10 y las 21:50 UTC y a veces actualiza entre medias; 4 llamadas por ciclo (48 al día).
+- Se guarda solo la última foto por localidad, como el resto de previsiones; no se archivan avisos.
 - 28-9-2026, petición del usuario: los conjuntos (GEFS y ECMWF ENS, con su media climática de 850 hPa) también para Huétor de Santillán. Supone una llamada más a Open-Meteo por hora; el uso estimado sube a unas 1.150 llamadas ponderadas al día, dentro del límite gratuito.

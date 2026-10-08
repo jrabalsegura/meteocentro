@@ -16,12 +16,14 @@ class Settings(BaseSettings):
     aemet_enabled: bool = True
     aemet_api_key: SecretStr | None = None
     aemet_poll_seconds: int = Field(default=900, ge=900)
-    aemet_daily_http_budget: int = Field(default=400, ge=3)
+    aemet_daily_http_budget: int = Field(default=1500, ge=3)
     aemet_current_reserve: int = Field(default=220, ge=0)
     aemet_minute_http_budget: int = Field(default=20, ge=1, le=40)
     aemet_concurrency: int = Field(default=1, ge=1, le=2)
     aemet_forecast_enabled: bool = True
     aemet_forecast_seconds: int = Field(default=10800, ge=3600)
+    aemet_warnings_enabled: bool = True
+    aemet_warnings_seconds: int = Field(default=7200, ge=3600)
     open_meteo_enabled: bool = True
     open_meteo_forecast_seconds: int = Field(default=3600, ge=1800)
     meteoclimatic_enabled: bool = False

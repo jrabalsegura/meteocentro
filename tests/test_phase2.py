@@ -488,7 +488,7 @@ def test_three_cycles_restart_gap_and_provider_outage_keep_archive(queue, db):
             restarted, batch([{**ROW, "fint": f"2026-01-15T{hour}:00:00+0000"}])
         )
         assert result["inserted"] == 3
-    assert count(db, Job) == 3 and count(db, IngestionRun) == 3
+    assert count(db, Job) == 4 and count(db, IngestionRun) == 3
     next_batch = batch([{**ROW, "fint": "2026-01-17T12:00:00+0000"}])
     result = commit_batch(queue, next_batch)
     assert result["gaps"][0]["reason"] == "outside_available_window"
@@ -717,8 +717,8 @@ def test_single_scheduling_leader_keeps_one_job_per_product(queue, db):
         )
     queue.schedule()
     assert db.scalar(select(Job.interval_seconds).where(Job.kind == "current")) == 1800
-    # current, inventory and the municipal forecast.
-    assert count(db, Job) == 3
+    # current, inventory, the municipal forecast and the warnings.
+    assert count(db, Job) == 4
 
 
 def test_changed_current_location_requires_review_without_rewriting_archive(queue, db):

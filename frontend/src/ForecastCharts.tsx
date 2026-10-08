@@ -84,9 +84,12 @@ function fmt(value: unknown, unit: string) {
 
 const axisNumber = (value: number) => value.toLocaleString("es-ES", { maximumFractionDigits: 1 });
 
+/** Height of the date strip above the first panel (day labels at the top as well). */
+export const TOP_DATES = 20;
+
 /** Stacked panels sharing one time axis and crosshair; titled panels get their own legend row. */
 function panelOption(panels: Panel[], series: Series[], range: [number, number]): EChartsCoreOption {
-  let y = 0;
+  let y = TOP_DATES;
   const grids = panels.map((panel) => {
     y += panel.title ? 44 : 4;
     const grid = { left: 44, right: panels.some((p) => p.right) ? 40 : 14, top: y, height: panel.height };
@@ -99,6 +102,18 @@ function panelOption(panels: Panel[], series: Series[], range: [number, number])
   });
   const now = Date.now();
   const last = panels.length - 1;
+  const days = {
+    type: "time",
+    min: range[0],
+    max: range[1],
+    // One split line per day (the browser's local midnight), as in classic meteograms.
+    minInterval: 86400000,
+    maxInterval: 86400000,
+    axisTick: { show: false },
+  };
+  const dayNames = { color: INK, fontSize: 10, hideOverlap: true, formatter: (value: number) => dayLabel.format(value) };
+  // An empty one-pixel grid that only carries the top row of day labels.
+  const strip = panels.length;
   return {
     animation: false,
     aria: { enabled: true },
@@ -129,7 +144,7 @@ function panelOption(panels: Panel[], series: Series[], range: [number, number])
           : [],
       }))
       .filter((legend) => legend.data.length > 1),
-    grid: grids,
+    grid: [...grids, { left: grids[0].left, right: grids[0].right, top: TOP_DATES - 1, height: 1 }],
     axisPointer: { link: [{ xAxisIndex: "all" }], label: { show: false } },
     tooltip: {
       trigger: "axis",
@@ -156,25 +171,24 @@ function panelOption(panels: Panel[], series: Series[], range: [number, number])
         return [hourLabel.format(items[0].axisValue), ...lines].join("\n");
       },
     },
-    xAxis: panels.map((panel, i) => ({
-      type: "time",
-      gridIndex: i,
-      min: range[0],
-      max: range[1],
-      // One split line per day (the browser's local midnight), as in classic meteograms.
-      minInterval: 86400000,
-      maxInterval: 86400000,
-      axisLine: { show: !panel.bare, lineStyle: { color: "#c4ccd8" } },
-      axisTick: { show: false },
-      splitLine: { show: true, lineStyle: { color: panel.bare ? "transparent" : GRID_LINE } },
-      axisLabel: {
-        show: i === last,
-        color: INK,
-        fontSize: 10,
-        hideOverlap: true,
-        formatter: (value: number) => dayLabel.format(value),
+    xAxis: [
+      ...panels.map((panel, i) => ({
+        ...days,
+        gridIndex: i,
+        axisLine: { show: !panel.bare, lineStyle: { color: "#c4ccd8" } },
+        splitLine: { show: true, lineStyle: { color: panel.bare ? "transparent" : GRID_LINE } },
+        axisLabel: { ...dayNames, show: i === last },
+      })),
+      {
+        ...days,
+        gridIndex: strip,
+        position: "top",
+        axisLine: { show: false },
+        splitLine: { show: false },
+        axisPointer: { show: false },
+        axisLabel: { ...dayNames, margin: 4 },
       },
-    })),
+    ],
     yAxis: [
       ...panels.map((panel, i) => ({
         type: "value",
@@ -197,6 +211,7 @@ function panelOption(panels: Panel[], series: Series[], range: [number, number])
         axisLabel: { color: BLUE, fontSize: 10, formatter: axisNumber },
         splitLine: { show: false },
       })),
+      { type: "value", gridIndex: strip, show: false },
     ],
     series: series.map(({ panel, unit: _unit, legend: _legend, right, ...rest }, index) => ({
       xAxisIndex: panel,
@@ -314,7 +329,7 @@ export function Meteogram({ model, range }: { model: ModelForecast; range: [numb
       { title: "Temperatura a 850 hPa", unit: "°C", height: 64, ticks: 2 },
     ];
     return {
-      height: panels.reduce((sum, p) => sum + p.height + (p.title ? 44 : 4), 0) + 26,
+      height: panels.reduce((sum, p) => sum + p.height + (p.title ? 44 : 4), 0) + 26 + TOP_DATES,
       option: panelOption(
         panels,
         [
@@ -462,7 +477,7 @@ export function EnsembleChart({
       { title: "Miembros con ≥ 1 mm en 6 h", unit: "%", height: 56, min: 0, max: 100, ticks: 2 },
     ];
     return {
-      height: panels.reduce((sum, p) => sum + p.height + 44, 0) + 26,
+      height: panels.reduce((sum, p) => sum + p.height + 44, 0) + 26 + TOP_DATES,
       option: panelOption(
         panels,
         [

@@ -120,6 +120,8 @@ class Queue:
                 products.append(("inventory", 20, 86400))
                 if self.settings.aemet_forecast_enabled:
                     products.append(("forecast", 10, self.settings.aemet_forecast_seconds))
+                if self.settings.aemet_warnings_enabled:
+                    products.append(("warnings", 10, self.settings.aemet_warnings_seconds))
             else:
                 products.append(("catalog", 20, 60))
             for kind, priority, interval in products:

@@ -250,6 +250,8 @@ Si una etapa falla, el script detiene API/web/worker y conserva DB y el intento 
 
 **Esquema incompatible o incidente:** mantener API/web/worker detenidos, conservar el volumen y revisar logs y `alembic_version`. Corregir hacia delante con una versión compatible o aplicar solo una reversión de esquema cuya conservación de datos esté verificada. Cambiar imágenes no recupera datos ni revierte una migración. No hay recuperación automática a un estado anterior de la base.
 
+**Mantenimiento:** Dependabot (`.github/dependabot.yml`) abre PRs agrupados de npm (`frontend`), uv (`backend`), imágenes base con digest y GitHub Actions: los de seguridad al momento y los de versiones menores y parches el día 1 de cada mes. Las versiones mayores, Python 3.14 y la imagen de PostgreSQL (`DB_IMAGE` en `deploy/scripts/ops.py` y el servicio de la CI) se cambian a mano. Una vez al mes, fusionar los PRs con la CI en verde y actualizar con este mismo procedimiento aunque no haya cambios propios, para recoger los parches de las imágenes base.
+
 ## 11. Diagnóstico, recursos y prueba de reinicio futura
 
 ```bash

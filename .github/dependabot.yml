@@ -1,0 +1,70 @@
+# Actualizaciones de dependencias (ver docs/OPERACION.md §10, "Mantenimiento").
+# - Seguridad: un PR en cuanto hay aviso, agrupado por ecosistema.
+# - Menores y parches: un PR agrupado al mes por ecosistema.
+# - Versiones mayores y saltos de Python (3.14) o PostgreSQL: a mano.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+      time: "06:00"
+      timezone: Europe/Madrid
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      npm-monthly:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: monthly
+      time: "06:00"
+      timezone: Europe/Madrid
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      uv-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      uv-monthly:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # Imágenes base de deploy/containers (uv, python, node, nginx), con digest.
+  - package-ecosystem: docker
+    directory: /deploy/containers
+    schedule:
+      interval: monthly
+      time: "06:00"
+      timezone: Europe/Madrid
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # requires-python = ">=3.13,<3.14": el salto a 3.14 se hace a mano.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor"]
+    groups:
+      docker-monthly:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "06:00"
+      timezone: Europe/Madrid
+    groups:
+      actions-monthly:
+        patterns: ["*"]

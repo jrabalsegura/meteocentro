@@ -53,7 +53,7 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
       # requires-python = ">=3.13,<3.14": el salto a 3.14 se hace a mano.
-      - dependency-name: "python"
+      - dependency-name: "library/python"
         update-types: ["version-update:semver-minor"]
     groups:
       docker-monthly:

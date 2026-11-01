@@ -62,8 +62,13 @@ const snapshot = <T,>(data: T, stale = false) => ({
   data,
 });
 
-// Official-time instant of a day offset, as AEMET writes it (+02:00 in October).
-const at = (n: number, time: string) => `${nextDay(n)}T${time}+02:00`;
+// Official-time instant of a day offset, as AEMET writes it (+02:00 in summer, +01:00 in winter).
+const madridOffset = (day: string) =>
+  new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Madrid", timeZoneName: "longOffset" })
+    .formatToParts(new Date(`${day}T12:00:00Z`))
+    .find((part) => part.type === "timeZoneName")!
+    .value.replace("GMT", "");
+const at = (n: number, time: string) => `${nextDay(n)}T${time}${madridOffset(nextDay(n))}`;
 
 function warnings(code: string) {
   const rain = {

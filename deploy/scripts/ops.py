@@ -133,6 +133,17 @@ def prepare(args):
         if re.search(r"@[A-Z_]+@", body):
             raise ValueError("Unresolved Quadlet token")
         (quadlet / path.name).write_text(body)
+    # Host units for email alerts; @RELEASE_DIR@ is resolved by apply, once installed.
+    units = args.output / "systemd"
+    units.mkdir()
+    for path in (ROOT / "deploy/systemd").iterdir():
+        body = path.read_text()
+        for key, value in values.items():
+            body = body.replace(f"@{key}@", value)
+        if re.search(r"@(?!RELEASE_DIR@)[A-Z_]+@", body):
+            raise ValueError("Unresolved systemd token")
+        (units / path.name).write_text(body)
+    shutil.copy2(ROOT / "deploy/scripts/alert.py", args.output / "alert.py")
     body = (ROOT / "deploy/nginx/meteocentro.conf.example").read_text()
     for key, value in values.items():
         body = body.replace(f"@{key}@", value)
@@ -289,6 +300,28 @@ def lock(state):
 
 def systemctl(release, *args):
     return run("systemctl", *(["--user"] if release["mode"] == "rootless" else []), *args)
+
+
+def install_alerts(release, release_dir):
+    """Install the optional alert timer; enabled only when alerts.env exists."""
+    source = release_dir / "systemd"
+    if not source.is_dir():
+        return
+    unit_dir = (
+        Path("/etc/systemd/system")
+        if release["mode"] == "rootful"
+        else Path.home() / ".config/systemd/user"
+    )
+    unit_dir.mkdir(parents=True, exist_ok=True)
+    for path in source.iterdir():
+        body = path.read_text().replace("@RELEASE_DIR@", str(release_dir.resolve()))
+        (unit_dir / path.name).write_text(body)
+    systemctl(release, "daemon-reload")
+    if (Path(release["config_dir"]) / "alerts.env").is_file():
+        systemctl(release, "enable", "--now", "meteocentro-alerts.timer")
+        print("Email alerts enabled (meteocentro-alerts.timer).")
+    else:
+        print("Email alerts installed but disabled: create alerts.env to enable them.")
 
 
 def apply(args):
@@ -498,6 +531,8 @@ def apply(args):
                 },
             )
             raise
+        # After the release is live, so an alert problem never stops the application.
+        install_alerts(release, event / "release")
     print("Release installed locally on this host. Nginx/certificates were not changed.")
 
 

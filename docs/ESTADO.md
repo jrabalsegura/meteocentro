@@ -1,10 +1,18 @@
 # Estado del desarrollo
 
-Última actualización: 8 de octubre de 2026.
+Última actualización: 1 de noviembre de 2026.
 
 **Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 24-9-2026 se actualiza al commit `22998d6d3de593d307dabeb87263d0b60fdfa25b`: sesiones nuevas de un año y horas aproximadas separadas de mínima/máxima según nuestro archivo de la misma fuente, conservando los valores extremos. La búsqueda mantiene el encuadre en el primer resultado con zoom 12. Se conservan la separación de marcadores según espacio disponible, el filtro de una hora, el resumen diario, la vista inicial de Madrid, el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
+
+## Clave AEMET caducada y avisos por correo — 1 de noviembre de 2026
+
+**Incidencia:** desde el 31-10 no llegaban previsiones de AEMET en producción. El 31-10 a las 11:33 UTC AEMET respondió 401 («La API Key ha expirado») y el worker pausó AEMET con `invalid_credentials`, como está diseñado. Meteoclimatic y Open-Meteo siguieron funcionando. El usuario puso una clave nueva en `worker.env` (caduca el 9-2-2027) y reinició el worker; se comprobó con una petición (200) y se ejecutó `--resume`. Ese mismo ciclo entraron 1.560 observaciones de 520 estaciones, 4 previsiones y 2 avisos. Las observaciones horarias que AEMET ya no publica (del 31-10 a las 10:00 UTC hasta el 1-11 por la mañana) quedan como hueco.
+
+**Cambio:** rama `claude/aviso-clave-aemet`. `aemet.key_expiry` lee el campo público `exp` de la clave (un JWT), sin verificarla ni registrarla, y `worker --status` lo devuelve como `key_expires_at`. Nuevo `deploy/scripts/alert.py` (solo biblioteca estándar, en el host): lee ese estado y envía correo con el `sendmail` local a 14, 3 y 1 días de la caducidad, cuando AEMET entra en pausa y cuando se recupera. `ops.py prepare` incluye el script y las unidades `meteocentro-alerts.service`/`.timer` (cada 30 min); `apply` las instala tras la comprobación HTTP y solo activa el temporizador si existe `alerts.env`. Un fallo de los avisos no detiene la aplicación. Ver `OPERACION.md` §6.
+
+**Validación:** `make check` correcto: Ruff, 231 pruebas de backend (nueva: caducidad leída de un JWT sintético, nula con claves opacas y la clave nunca en el estado), 5 de fase 0 y 8 de despliegue (nuevas: umbrales enviados una sola vez, un solo correo si se llega tarde, reinicio con clave nueva, pausa y recuperación una sola vez, unidades renderizadas e instaladas y temporizador activado solo con `alerts.env`), y build web. No desplegado ni probado el envío real.
 
 ## Avisos meteorológicos de AEMET en previsiones — 8 de octubre de 2026
 

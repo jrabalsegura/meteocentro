@@ -1,5 +1,6 @@
 """AEMET's verified two-step products. No temporary URL or secret is persisted."""
 
+import base64
 import json
 import re
 import time
@@ -33,6 +34,16 @@ def digest(value) -> str:
             value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
         ).encode()
     ).hexdigest()
+
+
+def key_expiry(key: str | None) -> datetime | None:
+    """AEMET keys are JWTs: read only the public expiry claim, never verify or log the key."""
+    try:
+        payload = key.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        return datetime.fromtimestamp(int(claims["exp"]), UTC)
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError, OverflowError):
+        return None
 
 
 def source_identity(external_id):

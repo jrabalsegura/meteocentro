@@ -1,0 +1,10 @@
+[Unit]
+Description=Meteocentro email alerts (AEMET pause and key expiry)
+After=meteocentro-worker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=@CONFIG_DIR@/alerts.env
+StateDirectory=meteocentro-alerts
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 -I @RELEASE_DIR@/alert.py

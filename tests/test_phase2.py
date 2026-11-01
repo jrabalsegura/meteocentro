@@ -13,6 +13,7 @@ from meteocentro.aemet import (
     checked_url,
     digest,
     dms,
+    key_expiry,
     normalize,
     retry_after,
     validate_metadata,
@@ -159,6 +160,32 @@ def test_normalization_utc_periods_null_zero_and_alternative_rain():
     assert dms("0034200W", latitude=False) < -3
     with pytest.raises(ValueError):
         dms("406000N", latitude=True)
+
+
+def jwt(claims):
+    import base64
+
+    def part(value):
+        return (
+            base64.urlsafe_b64encode(json.dumps(value).encode()).rstrip(b"=").decode()
+        )
+
+    return f"{part({'alg': 'HS256'})}.{part(claims)}.signature"
+
+
+def test_key_expiry_reads_only_the_public_claim(queue):
+    token = jwt({"sub": "someone", "exp": 1_802_200_000})
+    assert key_expiry(token) == datetime.fromtimestamp(1_802_200_000, UTC)
+    for invalid in (None, "", "synthetic-key", "a.%%%.c", jwt({"sub": "no expiry"})):
+        assert key_expiry(invalid) is None
+    # The status carries the expiry, never the key, and stays null for opaque keys.
+    assert status(queue)["key_expires_at"] is None
+    queue.settings = Settings(
+        database_url=queue.settings.database_url, aemet_api_key=token, _env_file=None
+    )
+    report = status(queue)
+    assert report["key_expires_at"] == datetime.fromtimestamp(1_802_200_000, UTC)
+    assert token not in json.dumps(report, default=str)
 
 
 def test_metadata_changed_period_or_units_fails_closed():

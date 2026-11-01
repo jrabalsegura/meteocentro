@@ -177,7 +177,16 @@ Con GHCR, usar la ruta a `ghcr-images.json` en `--images`. Para rootful renderiz
 - `meteocentro.env`: origen HTTPS exacto, lectura privada y sesión.
 - `worker.env`: AEMET/Meteoclimatic, cuotas, licencia y clave AEMET.
 
-Editar `worker.env` con editor privado, poner la clave AEMET válida y comprobar permisos sin imprimir su contenido. La clave anterior tiene caducidad registrada el 31-10-2026; comprobar validez y renovar cuando corresponda. No copiar datos/secretos de prueba. Cambiar contraseña de PostgreSQL exige primero `ALTER ROLE` por canal privado y actualizar ambos archivos: editar `POSTGRES_PASSWORD` no modifica una base ya inicializada.
+Editar `worker.env` con editor privado, poner la clave AEMET válida y comprobar permisos sin imprimir su contenido. Las claves de AEMET caducan (la actual, el 9-2-2027): `--status` del worker muestra `key_expires_at` sin revelar la clave y los avisos por correo de abajo lo vigilan. No copiar datos/secretos de prueba. Cambiar contraseña de PostgreSQL exige primero `ALTER ROLE` por canal privado y actualizar ambos archivos: editar `POSTGRES_PASSWORD` no modifica una base ya inicializada.
+
+### Avisos por correo (opcional)
+
+`prepare` incluye `alert.py` y las unidades `meteocentro-alerts.service`/`.timer`. `apply` las instala tras la comprobación HTTP (en rootless, en `~/.config/systemd/user`) y activa el temporizador solo si existe `alerts.env` en el directorio de configuración (ver `deploy/env/alerts.env.example`: `ALERT_TO`, `ALERT_FROM`, modo 0600). Cada 30 minutos, el script lee `--status` del worker, sin llamar a AEMET, y envía con el `sendmail` del host:
+
+- cuando faltan 14, 3 y 1 días para que caduque la clave (un único correo si varios umbrales ya han pasado; se reinicia al cambiar de clave);
+- cuando AEMET queda en pausa, con el motivo, y cuando vuelve a funcionar.
+
+Lo enviado se guarda en el `StateDirectory` de systemd (`~/.local/state/meteocentro-alerts/alerts.json` en rootless) y solo tras entregarlo a `sendmail`. Comprobar la entrega con `python3 -I <release>/alert.py --test` cargando `alerts.env`, y ver el resultado del último ciclo con `journalctl --user -u meteocentro-alerts`. `--dry-run` muestra los mensajes pendientes sin enviar ni guardar. El relay del host debe aceptar el remitente.
 
 Revisar `release.json`, Quadlet y `nginx.conf` (estos no incluyen secretos). Validar:
 

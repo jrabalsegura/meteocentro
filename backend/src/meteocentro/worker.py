@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from meteocentro.aemet import AemetAdapter
+from meteocentro.aemet import AemetAdapter, key_expiry
 from meteocentro.config import get_settings
 from meteocentro.db import get_engine
 from meteocentro.ingestion import Ingestor
@@ -116,10 +116,17 @@ def status(queue):
             .order_by(IngestionRun.started_at.desc())
             .limit(5)
         ).all()
+        secret = queue.settings.aemet_api_key if provider.code == "aemet" else None
         return {
             "provider": provider.code,
             "status": provider.status,
             "access_status": queue.access_status,
+            # Lets host-side alerts warn before the key expires without reading the secret.
+            **(
+                {"key_expires_at": key_expiry(secret.get_secret_value() if secret else None)}
+                if provider.code == "aemet"
+                else {}
+            ),
             "observation_age_seconds": age,
             "data_state": (
                 "no_data"

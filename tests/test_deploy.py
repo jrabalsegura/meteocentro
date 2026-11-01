@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from contextlib import ExitStack
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -15,6 +16,11 @@ spec = importlib.util.spec_from_file_location(
 )
 ops = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ops)
+spec = importlib.util.spec_from_file_location(
+    "alert", Path(__file__).resolve().parents[1] / "deploy/scripts/alert.py"
+)
+alert = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(alert)
 
 
 class DeploymentSafety(unittest.TestCase):
@@ -49,6 +55,11 @@ class DeploymentSafety(unittest.TestCase):
                     tls_key=None,
                 )
             )
+            service = (release / "systemd/meteocentro-alerts.service").read_text()
+            self.assertIn(f"EnvironmentFile={config}/alerts.env", service)
+            self.assertIn("@RELEASE_DIR@/alert.py", service)
+            self.assertTrue((release / "systemd/meteocentro-alerts.timer").is_file())
+            self.assertTrue((release / "alert.py").is_file())
             ops.init_config(SimpleNamespace(release=release))
             data = json.loads((release / "release.json").read_text())
             self.assertNotIn("AEMET_API_KEY", (config / "meteocentro.env").read_text())
@@ -231,6 +242,75 @@ class DeploymentUpdates(unittest.TestCase):
             self.assertNotIn("s3cret", output.getvalue())
 
 
-
 if __name__ == "__main__":
     unittest.main()
+
+
+class Alerts(unittest.TestCase):
+    NOW = datetime(2027, 1, 20, 12, tzinfo=UTC)
+
+    def status(self, expires_in=None, paused=None):
+        return {
+            "status": "paused" if paused else "verified",
+            "key_expires_at": (str(self.NOW + expires_in) if expires_in is not None else None),
+            "runtime": {"pause_reason": paused},
+        }
+
+    def test_expiry_warns_once_per_threshold_and_resets_for_a_new_key(self):
+        key = self.status(timedelta(days=40))
+
+        def at(days_left, state):
+            return alert.evaluate(key, state, self.NOW + timedelta(days=40 - days_left))
+
+        messages, state = at(40, {})
+        self.assertEqual(messages, [])
+        messages, state = at(13.5, state)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("14 días", messages[0][0])
+        self.assertIn("(hora peninsular)", messages[0][1])
+        self.assertEqual(at(13, state)[0], [])
+        # A late first run sends one message, not one per missed threshold.
+        messages, late = at(0.8, {})
+        self.assertEqual(len(messages), 1)
+        self.assertIn("1 día", messages[0][0])
+        self.assertEqual(late["expiry_sent"], [14, 3, 1])
+        self.assertEqual(at(-0.1, late)[0], [])
+        messages, renewed = alert.evaluate(self.status(timedelta(days=100)), late, self.NOW)
+        self.assertEqual((messages, renewed["expiry_sent"]), ([], []))
+
+    def test_pause_and_recovery_are_reported_once(self):
+        messages, state = alert.evaluate(self.status(paused="invalid_credentials"), {}, self.NOW)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("invalid_credentials", messages[0][0])
+        self.assertIn("--resume", messages[0][1])
+        self.assertEqual(
+            alert.evaluate(self.status(paused="invalid_credentials"), state, self.NOW)[0], []
+        )
+        messages, state = alert.evaluate(self.status(), state, self.NOW)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("vuelve a funcionar", messages[0][0])
+        self.assertIsNone(state["paused"])
+        self.assertEqual(alert.evaluate(self.status(), state, self.NOW)[0], [])
+
+    def test_timer_is_installed_and_enabled_only_with_alerts_env(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root).resolve()
+            release_dir = root / "release"
+            (release_dir / "systemd").mkdir(parents=True)
+            (release_dir / "systemd/meteocentro-alerts.service").write_text(
+                "ExecStart=/usr/bin/python3 -I @RELEASE_DIR@/alert.py\n"
+            )
+            release = {"mode": "rootless", "config_dir": str(root / "config")}
+            (root / "config").mkdir()
+            calls = []
+            with (
+                patch.object(Path, "home", return_value=root),
+                patch.object(ops, "systemctl", side_effect=lambda r, *a: calls.append(a)),
+            ):
+                ops.install_alerts(release, release_dir)
+                self.assertEqual(calls, [("daemon-reload",)])
+                (root / "config/alerts.env").write_text("ALERT_TO=x\n")
+                ops.install_alerts(release, release_dir)
+            self.assertEqual(calls[-1], ("enable", "--now", "meteocentro-alerts.timer"))
+            unit = (root / ".config/systemd/user/meteocentro-alerts.service").read_text()
+            self.assertIn(f"{release_dir}/alert.py", unit)

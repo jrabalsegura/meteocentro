@@ -6,6 +6,16 @@
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
 
+## Pestañas Modelos y AEMET; tabla sin sensación — 17 de noviembre de 2026
+
+**Petición:** tras el despliegue de la tabla por modelos, el usuario vio en Madrid el aviso de que AROME no llegaba y la columna de sensación vacía. Pide comprobarlo, quitar la sensación y poner la lluvia en su lugar, y separar «Previsiones» en dos pestañas superiores: Modelos y AEMET. Rama `claude/modelos-aemet-pestanas`.
+
+**Diagnóstico:** en producción, AROME de Madrid y la sensación de los tres modelos tienen datos desde el refresco forzado de las 17:34 UTC; lo visto fue anterior a ese refresco (snapshots sin AROME ni variables nuevas). Pero el aviso tenía un fallo: salía cuando faltaba el snapshot de AROME, no solo cuando la localidad está fuera del dominio.
+
+**Cambio:** el aviso de cobertura solo aparece si la API no ofrece AROME para la localidad; sin datos todavía se ve «AROME: todavía no hay datos». La tabla queda en Día, Hora, Temp., Lluvia, Viento (dir., medio, racha), Hum., Presión, Nubes y Tiempo; el worker deja de pedir `apparent_temperature`. Navegación: Mapa, Modelos (`/modelos`: tabla por modelos, meteogramas y conjuntos) y AEMET (`/aemet`: predicción, avisos y próximas horas), seguidas de Estaciones, Datos diarios e Históricos. La localidad se conserva al cambiar de pestaña; `/previsiones` abre Modelos. Cada pestaña muestra solo su atribución.
+
+**Validación:** `make check` correcto: Ruff, 234 pruebas de backend, 5 de fase 0, 8 de despliegue y build web. `make e2e`: 36 correctos y uno omitido (nuevo: AROME sin datos en Madrid no muestra el aviso de cobertura y `/previsiones` abre Modelos; el recorrido principal comprueba pestañas, columnas y localidad conservada a 1440 y 390 px). En local con datos reales de Open-Meteo, revisadas ambas pestañas con sesión iniciada. No desplegado.
+
 ## AROME en Madrid y tabla de previsión por modelos — 17 de noviembre de 2026
 
 **Petición:** el usuario quiere una tabla de previsión por modelos al estilo de iberiameteo.com (barra de botones para elegir modelo, tarjetas por día y tabla coloreada), además de los meteogramas, para Madrid y Huétor de Santillán, y añadir AROME en Madrid si Huétor queda fuera de su cobertura. Rama `claude/modelos-tabla`.

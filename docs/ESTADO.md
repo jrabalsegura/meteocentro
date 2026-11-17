@@ -26,7 +26,9 @@
 
 **Validación:** `make check` correcto: Ruff, 234 pruebas de backend (nuevas: lluvia de 3 h, corte de ECMWF a 144 h, AROME solo en Madrid, orden de modelos en la API y petición sin AROME para Huétor), 5 de fase 0, 8 de despliegue y build web. `make e2e`: 35 correctos y uno omitido; el recorrido de previsiones comprueba botones, cambio de modelo e intervalo, guiones sin inventar y Huétor sin AROME, a 1440 y 390 px. En local (`make up-worker`), refresco Open-Meteo forzado con datos reales: 9 snapshots sin errores; revisado en el navegador con sesión iniciada (cuenta local de prueba) en Madrid y Huétor, escritorio y móvil sin desbordamiento horizontal.
 
-**Pendiente:** no desplegado. El coste de Open-Meteo sube por las variables y el tercer modelo de Madrid (estimación: unas 80 llamadas ponderadas más al día, lejos del límite de 10.000).
+**Despliegue:** solicitado por el usuario. CI del PR #50 en verde (6 comprobaciones) y fusionado como `7fbe072c0132786f20b8cd31010eede7a52e9439`. En `remote`, imágenes construidas desde ese SHA (amd64). `ops.py prepare` en un directorio nuevo con el mismo modo, dominio, puerto 8089 y configuración: solo cambian las imágenes de API, worker y web; nginx y unidades iguales; sin migración (`0007_forecasts`). `ops.py apply` correcto: comprobación HTTP/SPA/protección y temporizador de avisos activado. Verificación: cuatro unidades y el temporizador activos; `state/current` apunta al intento del 17-11-2026 17:33 UTC y `state/previous` al de las 17:14 (`38e33d7`); HTTPS 200 y 401 sin sesión en `/api/v1/forecasts`; refresco Open-Meteo forzado en el worker con 9 snapshots y sin errores (AROME de Madrid, pasada 12 UTC, con lluvia de 3 h y humedad); el JS servido contiene la sección nueva. No se ha probado con sesión iniciada en el navegador de producción.
+
+**Coste:** Open-Meteo sube por las variables y el tercer modelo de Madrid (estimación: unas 80 llamadas ponderadas más al día, lejos del límite de 10.000).
 
 ## Sin aviso de fondo del mapa — 17 de noviembre de 2026
 

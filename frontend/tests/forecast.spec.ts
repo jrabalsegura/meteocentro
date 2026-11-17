@@ -10,10 +10,11 @@ const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid"
 const nextDay = (n: number) =>
   new Date(Date.parse(`${today}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 
-function model(code: string, label: string) {
-  const time = steps(3 * HOUR, 40);
+function model(code: string, label: string, count = 40) {
+  const time = steps(3 * HOUR, count);
   const wave = (base: number) => time.map((_, i) => base + Math.round(Math.sin(i / 3) * 50) / 10);
-  const rain = steps(6 * HOUR, 20);
+  const rain = steps(6 * HOUR, count / 2);
+  const short = steps(3 * HOUR, count);
   return {
     model: code,
     label,
@@ -22,12 +23,15 @@ function model(code: string, label: string) {
     time,
     series: {
       temperature_2m: wave(18),
+      apparent_temperature: wave(17),
+      relative_humidity_2m: wave(70),
       dew_point_2m: wave(8),
       temperature_850hPa: wave(12),
       pressure_msl: wave(1018),
       wind_speed_10m: wave(12),
       wind_gusts_10m: wave(25),
       wind_direction_10m: wave(180),
+      cloud_cover: wave(60),
       cloud_cover_low: wave(20),
       cloud_cover_mid: wave(40),
       cloud_cover_high: wave(60),
@@ -36,6 +40,11 @@ function model(code: string, label: string) {
       time: rain,
       precipitation: rain.map((_, i) => (i === 3 ? null : i % 4)),
       snowfall: rain.map(() => 0),
+    },
+    accumulated_3h: {
+      time: short,
+      precipitation: short.map((_, i) => (i === 7 ? null : (i % 3) / 2)),
+      snowfall: short.map(() => 0),
     },
   };
 }
@@ -163,10 +172,15 @@ function place(code: string, name: string, withEnsemble: boolean) {
       hourly: snapshot({ issued_at: "", link: "", hours, windows: [] }),
     },
     warnings: warnings(code),
-    models: {
-      gfs: snapshot(model("gfs", "GFS (NOAA) 0,25°")),
-      ecmwf: code === "madrid" ? snapshot(model("ecmwf", "ECMWF IFS 0,25°")) : null,
-    },
+    // Display order from the API; AROME only where its domain reaches.
+    models:
+      code === "madrid"
+        ? {
+            arome: snapshot(model("arome", "AROME (Météo-France) 2,5 km", 16)),
+            gfs: snapshot(model("gfs", "GFS (NOAA) 0,25°")),
+            ecmwf: snapshot(model("ecmwf", "ECMWF IFS 0,25°")),
+          }
+        : { gfs: snapshot(model("gfs", "GFS (NOAA) 0,25°")), ecmwf: null },
     climate_850hPa: {
       period: "1991-2020",
       dataset: "SINTÉTICO",
@@ -244,18 +258,39 @@ for (const width of [1440, 390]) {
     await expect(warningDays.nth(2).locator(".warning-text")).toHaveText("Chubascos tormentosos.");
     await expect(page.getByText("Avisos · zona Metropolitana y Henares")).toBeVisible();
     await page.locator(".warning-days").screenshot({ path: `test-results/avisos-${width}.png` });
-    await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
+    // Model table: AROME first in Madrid, one model at a time.
+    const modelBar = page.getByRole("group", { name: "Modelo" });
+    await expect(modelBar.getByRole("button")).toHaveText(["AROME 2,5 km", "GFS", "ECMWF IFS"]);
+    await expect(modelBar.getByRole("button", { name: "AROME 2,5 km" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".model-info")).toContainText("AROME (Météo-France) 2,5 km");
+    const aromeRows = await page.locator(".model-table tbody tr").count();
+    expect(aromeRows).toBeGreaterThan(5);
+    expect(aromeRows).toBeLessThanOrEqual(16);
+    await expect(page.locator(".model-day").first()).toBeVisible();
+    // A missing 3 h total is a dash, and the day holding it has no invented sum.
+    await expect(page.locator(".model-table td", { hasText: /^—$/ }).first()).toBeVisible();
+    await expect(page.locator(".model-day-rain", { hasText: "— mm" }).first()).toBeVisible();
+    await page.locator(".model-table-scroll").screenshot({ path: `test-results/tabla-arome-${width}.png` });
+    await modelBar.getByRole("button", { name: "GFS" }).click();
+    await expect(page.locator(".model-info")).toContainText("GFS (NOAA) 0,25°");
+    const gfsRows = await page.locator(".model-table tbody tr").count();
+    expect(gfsRows).toBeGreaterThan(aromeRows);
+    await page.getByRole("group", { name: "Intervalo de la tabla" }).getByRole("button", { name: "6 h" }).click();
+    await expect.poll(() => page.locator(".model-table tbody tr").count()).toBeLessThan(gfsRows);
+    await page.getByRole("group", { name: "Intervalo de la tabla" }).getByRole("button", { name: "3 h" }).click();
+    await modelBar.getByRole("button", { name: "AROME 2,5 km" }).click();
+    await expect(page.locator(".forecast-chart svg")).toHaveCount(5);
     await expect(page.getByText("GEFS (NOAA) 0,5° · 31 miembros")).toBeVisible();
     await expect(page.locator(".forecast-chart svg text", { hasText: "Media 1991–2020" })).toHaveCount(2);
     await expect(page.getByRole("button", { name: "10 días" })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "16 días" }).click();
     await expect(page.getByRole("button", { name: "16 días" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
+    await expect(page.locator(".forecast-chart svg")).toHaveCount(5);
     await page.getByRole("button", { name: "4 días" }).click();
     await expect(page.getByRole("button", { name: "4 días" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".forecast-chart svg")).toHaveCount(4);
+    await expect(page.locator(".forecast-chart svg")).toHaveCount(5);
     await page.locator(".forecast-chart").first().screenshot({ path: `test-results/meteograma-4d-${width}.png` });
-    await page.locator(".forecast-chart").nth(2).screenshot({ path: `test-results/conjunto-${width}.png` });
+    await page.locator(".forecast-chart").nth(3).screenshot({ path: `test-results/conjunto-${width}.png` });
     await page.getByText("Ver datos en tabla (cada 6 h)").first().click();
     await expect(page.locator(".forecast-data table").first()).toBeVisible();
     expect(
@@ -266,6 +301,10 @@ for (const width of [1440, 390]) {
     await expect(page).toHaveURL(/lugar=huetor-santillan/);
     await expect(page.getByRole("heading", { name: "Previsión para Huétor de Santillán" })).toBeVisible();
     await expect(page.getByText("Conjuntos (ensembles)")).toBeVisible();
+    // Huétor is south of AROME's domain: no button, an explanation, and GFS shown instead.
+    await expect(page.getByRole("group", { name: "Modelo" }).getByRole("button")).toHaveText(["GFS", "ECMWF IFS"]);
+    await expect(page.getByText("AROME no se ofrece aquí")).toBeVisible();
+    await expect(page.locator(".model-info")).toContainText("GFS (NOAA) 0,25°");
     await expect(page.getByText("ECMWF: todavía no hay datos")).toBeVisible();
     // A stale warnings snapshot is unknown, never green.
     await expect(page.locator(".warning-day.level-unknown")).toHaveCount(3);

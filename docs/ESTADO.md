@@ -6,6 +6,18 @@
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
 
+## AROME en Madrid y tabla de previsión por modelos — 17 de noviembre de 2026
+
+**Petición:** el usuario quiere una tabla de previsión por modelos al estilo de iberiameteo.com (barra de botones para elegir modelo, tarjetas por día y tabla coloreada), además de los meteogramas, para Madrid y Huétor de Santillán, y añadir AROME en Madrid si Huétor queda fuera de su cobertura. Rama `claude/modelos-tabla`.
+
+**Cobertura comprobada:** AROME France 0,025° de Météo-France (Open-Meteo `meteofrance_arome_france`, metadatos `meteofrance_arome_france0025`) cubre 37,5–55,4° N. Madrid (40,42° N) devuelve datos; Huétor (37,22° N) responde «No data is available for this location». La pasada servida (12 UTC del 17-11) llega a +51 h. La variante HD de 1,3 km no da presión ni 850 hPa y no se usa; `meteofrance_seamless` rellena con ARPEGE y no se usa para no presentar como AROME lo que no lo es.
+
+**Cambio:** `forecast.Location.models` fija los modelos de cada sitio: Madrid AROME, GFS y ECMWF; Huétor GFS y ECMWF. La petición determinista de cada sitio solo pide sus modelos. Nuevas variables instantáneas: `apparent_temperature`, `relative_humidity_2m` y `cloud_cover` (unidades comprobadas). Nuevo `accumulated_3h` (lluvia y nieve en 3 h completas, sin rellenar huecos); para ECMWF se corta a 144 h de la pasada porque después solo es de 6 h. `/api/v1/forecasts` devuelve `models` en orden de presentación. Frontend: sección «Previsión por modelos» con botones de modelo y de intervalo (3 h / 6 h, recordados en el navegador), ficha del modelo (pasada, altitud de rejilla, alcance), tarjetas por día (máx./mín. de las horas de la tabla, lluvia, racha, «día parcial») y tabla con día, hora (☾ de noche), temperatura, sensación, viento (dirección, medio, racha), lluvia desde la fila anterior, humedad, presión, nubes (total y bajas·medias·altas) y símbolo. AROME llega hasta donde dé su pasada (máx. 3 días) y GFS/ECMWF a 7 días; ECMWF pasa a filas de 6 h tras 144 h. Un total diario con algún intervalo sin dato queda «—». Los meteogramas incluyen AROME en Madrid con su propio horizonte. Huétor explica que AROME no llega allí. Los snapshots antiguos sin las nuevas variables se muestran con «—» hasta el siguiente refresco.
+
+**Validación:** `make check` correcto: Ruff, 234 pruebas de backend (nuevas: lluvia de 3 h, corte de ECMWF a 144 h, AROME solo en Madrid, orden de modelos en la API y petición sin AROME para Huétor), 5 de fase 0, 8 de despliegue y build web. `make e2e`: 35 correctos y uno omitido; el recorrido de previsiones comprueba botones, cambio de modelo e intervalo, guiones sin inventar y Huétor sin AROME, a 1440 y 390 px. En local (`make up-worker`), refresco Open-Meteo forzado con datos reales: 9 snapshots sin errores; revisado en el navegador con sesión iniciada (cuenta local de prueba) en Madrid y Huétor, escritorio y móvil sin desbordamiento horizontal.
+
+**Pendiente:** no desplegado. El coste de Open-Meteo sube por las variables y el tercer modelo de Madrid (estimación: unas 80 llamadas ponderadas más al día, lejos del límite de 10.000).
+
 ## Sin aviso de fondo del mapa — 17 de noviembre de 2026
 
 **Petición:** el aviso «El fondo cartográfico no está disponible» (y «La cartografía está tardando») seguía saliendo sin motivo tras el PR #40, y no aporta nada: si el fondo no carga, se ve. El usuario pidió quitarlo. Rama `claude/quitar-aviso-fondo`.

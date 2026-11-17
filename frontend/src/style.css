@@ -1945,3 +1945,52 @@ footer div {
     grid-template-columns: 1fr;
   }
 }
+
+/* Previsión por modelos: selector, días y tabla coloreada */
+.model-bar { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; background: #f1f5fb; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0 10px; }
+.model-bar-label { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.model-bar-label + .model-buttons { margin-right: 10px; }
+.model-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.model-buttons button { padding: 6px 14px; font-weight: 600; font-size: .82rem; background: white; }
+.model-buttons button.active { background: var(--blue); border-color: var(--blue); color: white; }
+.model-info { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: .8rem; margin-bottom: 12px; }
+.model-info strong { color: var(--blue); font-size: .95rem; }
+.model-info .forecast-meta { margin: 2px 0 0; }
+.model-days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; }
+.model-day { flex: 0 0 auto; min-width: 104px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; text-align: center; font-size: .75rem; }
+.model-day h4 { margin: 0; font-size: .78rem; font-weight: 500; color: var(--blue); text-transform: capitalize; }
+.model-day h4 strong { font-size: 1.05rem; }
+.model-day-icon { font-size: 1.9rem; line-height: 1.2; margin: 2px 0; }
+.model-day-temps { display: flex; gap: 4px; justify-content: center; margin-bottom: 4px; }
+.model-day-temps span { border-radius: 4px; padding: 1px 5px; font-weight: 700; font-size: .8rem; }
+.model-day-rain { color: var(--muted); }
+.model-day-rain.wet { color: var(--blue); font-weight: 700; }
+.model-day-gust { color: var(--muted); }
+.model-day-gust.strong { color: #b8461b; }
+.model-day-partial { display: block; color: var(--muted); font-size: .62rem; font-style: italic; }
+.model-table-scroll { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; }
+.model-table { border-collapse: collapse; width: 100%; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.model-table thead th { position: sticky; background: var(--blue); color: white; font-weight: 600; text-align: center; padding: 5px 8px; border: 1px solid rgba(255,255,255,.18); white-space: nowrap; z-index: 2; }
+.model-table thead tr:first-child th { top: 0; }
+.model-table thead tr:nth-child(2) th { top: 27px; }
+.model-table thead th small { display: block; font-weight: 400; font-size: .65rem; opacity: .85; }
+.model-table td, .model-table tbody th { padding: 6px 8px; text-align: center; border-bottom: 1px solid #e7ecf2; border-right: 1px solid #eef1f5; white-space: nowrap; }
+.model-table tbody + tbody { border-top: 2px solid var(--blue); }
+.model-table-day { background: #eef3fa; color: var(--blue); vertical-align: middle; min-width: 52px; }
+.model-table-day small { display: block; font-weight: 500; font-size: .7rem; text-transform: capitalize; }
+.model-table-day strong { display: block; font-size: 1.15rem; }
+.model-table-hour { background: #f8fafc; font-weight: 600; }
+.model-table-hour span { color: var(--muted); font-weight: 400; }
+.model-table td.strong { font-weight: 700; }
+.model-table td.faint { color: #9aa6b4; }
+.model-table td small { color: inherit; opacity: .75; font-size: .66rem; }
+.model-table td.clouds small { display: block; }
+.model-table td.sky { font-size: 1.15rem; }
+.model-table td.dir { text-align: left; }
+.model-wind { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
+.model-wind span { display: inline-block; color: var(--blue); font-weight: 700; }
+.model-table tr.current td, .model-table tr.current th.model-table-hour { box-shadow: inset 0 2px 0 var(--blue), inset 0 -2px 0 var(--blue); }
+@media (max-width: 720px) {
+  .model-table { font-size: .72rem; }
+  .model-table td, .model-table tbody th { padding: 4px 5px; }
+}

@@ -214,12 +214,15 @@ def model_document(models, hours=48, **overrides):
     for model in models:
         for variable, unit in (
             ("temperature_2m", "°C"),
+            ("apparent_temperature", "°C"),
+            ("relative_humidity_2m", "%"),
             ("dew_point_2m", "°C"),
             ("temperature_850hPa", "°C"),
             ("pressure_msl", "hPa"),
             ("wind_speed_10m", "km/h"),
             ("wind_gusts_10m", "km/h"),
             ("wind_direction_10m", "°"),
+            ("cloud_cover", "%"),
             ("cloud_cover_low", "%"),
             ("cloud_cover_mid", "%"),
             ("cloud_cover_high", "%"),
@@ -252,8 +255,12 @@ def ensemble_document(members=5, hours=24):
     return {"hourly": hourly, "hourly_units": units}
 
 
+def model(code):
+    return next(m for m in DETERMINISTIC if m.code == code)
+
+
 def test_deterministic_precipitation_is_summed_in_complete_six_hour_windows():
-    gfs = DETERMINISTIC[0]
+    gfs = model("gfs")
     rain = [0.0] * 48
     rain[1:7] = [0.9, 0.9, 0.9, 0.4, 0.4, 0.4]  # ECMWF-like 3 h totals spread per hour.
     rain[10] = None
@@ -268,10 +275,39 @@ def test_deterministic_precipitation_is_summed_in_complete_six_hour_windows():
     assert payload["series"]["temperature_2m"][:2] == [0.0, 3.0]
     assert payload["run"] == "2026-09-27T06:00:00+00:00"
     assert payload["grid"] == {"latitude": 40.5, "longitude": -3.75, "elevation": 666.0}
+    three_hours = payload["accumulated_3h"]
+    assert three_hours["time"][:4] == [
+        T0 + 3 * 3600,
+        T0 + 6 * 3600,
+        T0 + 9 * 3600,
+        T0 + 12 * 3600,
+    ]
+    assert three_hours["precipitation"][:4] == [2.7, 1.2, 0.0, None]
+
+
+def test_ecmwf_three_hour_rain_stops_where_the_model_becomes_six_hourly():
+    ecmwf = model("ecmwf")
+    run = datetime.fromtimestamp(T0, UTC)
+    document = model_document([ecmwf], hours=24 * 8)
+    payload = normalize_deterministic(document, ecmwf, run)
+    assert payload["accumulated_3h"]["time"][-1] == T0 + 144 * 3600
+    assert payload["accumulated_6h"]["time"][-1] == T0 + 186 * 3600
+    gfs = normalize_deterministic(
+        model_document([model("gfs")], hours=24 * 8), model("gfs"), run
+    )
+    assert gfs["accumulated_3h"]["time"][-1] == T0 + 189 * 3600
+
+
+def test_arome_is_requested_only_inside_its_domain():
+    from meteocentro.forecast import LOCATIONS
+
+    assert LOCATIONS["madrid"].models == ("arome", "gfs", "ecmwf")
+    # Huétor de Santillán (37.22 °N) is south of AROME France's 37.5 °N edge.
+    assert LOCATIONS["huetor-santillan"].models == ("gfs", "ecmwf")
 
 
 def test_deterministic_horizon_is_trimmed_per_model_without_filling():
-    gfs, ecmwf = DETERMINISTIC
+    gfs, ecmwf = model("gfs"), model("ecmwf")
     document = model_document([gfs, ecmwf])
     for key in list(document["hourly"]):
         if key.endswith("_ecmwf_ifs025"):
@@ -286,16 +322,17 @@ def test_deterministic_horizon_is_trimmed_per_model_without_filling():
     "change",
     [
         lambda d: d["hourly_units"].update({"temperature_2m_gfs_global": "°F"}),
+        lambda d: d["hourly"].pop("relative_humidity_2m_gfs_global"),
         lambda d: d["hourly"].pop("pressure_msl_gfs_global"),
         lambda d: d["hourly"]["time"].__setitem__(3, T0),
         lambda d: d["hourly"]["wind_speed_10m_gfs_global"].__setitem__(0, "5"),
     ],
 )
 def test_deterministic_rejects_contract_changes(change):
-    document = model_document([DETERMINISTIC[0]])
+    document = model_document([model("gfs")])
     change(document)
     with pytest.raises(ValueError):
-        normalize_deterministic(document, DETERMINISTIC[0], None)
+        normalize_deterministic(document, model("gfs"), None)
 
 
 def test_ensemble_mean_requires_every_member():
@@ -462,7 +499,10 @@ def open_meteo_transport(calls, *, fail_ensemble=False):
                 return httpx.Response(502)
             return httpx.Response(200, json=ensemble_document(members=10))
         assert request.url.params["timezone"] == "UTC"
-        return httpx.Response(200, json=model_document(DETERMINISTIC))
+        models = request.url.params["models"].split(",")
+        return httpx.Response(
+            200, json=model_document([m for m in DETERMINISTIC if m.request in models])
+        )
 
     return httpx.MockTransport(handler)
 
@@ -475,14 +515,25 @@ def test_open_meteo_refresh_is_scheduled_and_never_repeats_early(db, engine):
     calls = []
     settings = open_meteo_settings(engine)
     report = refresh_open_meteo(engine, settings, transport=open_meteo_transport(calls))
-    assert report["status"] == "succeeded" and len(report["saved"]) == 8
-    # 4 metadata files, then a deterministic and an ensemble point per place.
-    assert len(calls) == 8
+    assert report["status"] == "succeeded" and len(report["saved"]) == 9
+    assert "madrid/deterministic_arome" in report["saved"]
+    assert "huetor-santillan/deterministic_arome" not in report["saved"]
+    # 5 metadata files, then a deterministic and an ensemble point per place.
+    assert len(calls) == 9
+    points = [
+        c
+        for c in calls
+        if c.url.host == "api.open-meteo.com" and "models" in c.url.params
+    ]
+    assert [c.url.params["models"] for c in points] == [
+        "meteofrance_arome_france,gfs_global,ecmwf_ifs025",
+        "gfs_global,ecmwf_ifs025",
+    ]
     assert (
         refresh_open_meteo(engine, settings, transport=open_meteo_transport(calls))
         is None
     )
-    assert len(calls) == 8
+    assert len(calls) == 9
     job = db.scalar(select(Job).where(Job.dedupe_key == OPEN_METEO_JOB))
     assert job.next_run_at - db_now(db) > timedelta(minutes=55)
     ensembles = db.scalars(
@@ -582,6 +633,8 @@ def test_forecast_api_returns_snapshots_with_staleness(db):
     assert madrid["ensembles"]["gfs"]["stale"] is False
     assert huetor["ensembles"] == {"gfs": None, "ecmwf": None}
     assert huetor["models"]["ecmwf"]["data"] == {"time": []}
+    assert list(madrid["models"]) == ["arome", "gfs", "ecmwf"]
+    assert list(huetor["models"]) == ["gfs", "ecmwf"]
     assert {item["source"] for item in body["attribution"]} == {
         "aemet",
         "ncep",

@@ -28,13 +28,6 @@ const tiles = {
     import.meta.env.VITE_LIGHT_TILES_URL || wmts("ign-base", "IGNBaseTodo"),
 };
 export type View = { lng: number; lat: number; zoom: number };
-const BASE_UNAVAILABLE =
-  "El fondo cartográfico no está disponible. Puedes consultar los números y la tabla.";
-const BASE_SLOW =
-  "La cartografía está tardando. Los datos y la tabla siguen disponibles.";
-// The IGN WMTS occasionally fails a single tile while the rest load: only
-// warn after several consecutive failures, and clear when tiles load again.
-const BASE_FAILURES = 3;
 // User-selected Madrid city view. Explicit URL views take precedence.
 const DEFAULT_VIEW: View = { lng: -3.70765, lat: 40.42437, zoom: 10.69 };
 const coords = boundaries.features.flatMap(
@@ -118,10 +111,9 @@ export default function WeatherMap({
   const groupPopup = useRef<maplibregl.Popup | null>(null);
   const focusedMarker = useRef<string | null>(null);
   const [base, setBase] = useState<"topo" | "light">("topo");
-  const [error, setError] = useState("");
+  const [unsupported, setUnsupported] = useState(false);
   const [ready, setReady] = useState(false);
   const [revision, setRevision] = useState(0);
-  const baseFailures = useRef(0);
   const callbacks = useRef({ onView, onSelect, onSearchFocus });
   callbacks.current = { onView, onSelect, onSearchFocus };
   const firstView = useRef(initialView ?? DEFAULT_VIEW);
@@ -160,18 +152,6 @@ export default function WeatherMap({
         setReady(true);
         setRevision((n) => n + 1);
       });
-      instance.on("sourcedata", (event) => {
-        if (event.sourceId !== "base" || !event.tile) return;
-        baseFailures.current = 0;
-        setError((current) =>
-          current === BASE_UNAVAILABLE || current === BASE_SLOW ? "" : current,
-        );
-      });
-      instance.on("error", (event) => {
-        const { sourceId } = event as { sourceId?: string };
-        if (sourceId !== "base" || ++baseFailures.current >= BASE_FAILURES)
-          setError(BASE_UNAVAILABLE);
-      });
       instance.on("moveend", () => {
         const center = instance.getCenter();
         callbacks.current.onView({
@@ -190,20 +170,13 @@ export default function WeatherMap({
       instance.on("styledata", () => {
         setReady(true);
       });
-      const timeout = window.setTimeout(() => {
-        if (!instance.areTilesLoaded())
-          setError(BASE_SLOW);
-      }, 10000);
       return () => {
-        clearTimeout(timeout);
         resize.disconnect();
         instance.remove();
         map.current = null;
       };
     } catch {
-      setError(
-        "Este navegador no puede dibujar el mapa. Consulta la tabla de estaciones.",
-      );
+      setUnsupported(true);
       return;
     }
   }, []);
@@ -335,8 +308,6 @@ export default function WeatherMap({
   }, [stations, metric, selected, ready, revision]);
   function changeBase(next: "topo" | "light") {
     setBase(next);
-    setError("");
-    baseFailures.current = 0;
     map.current?.setStyle(style(next));
   }
   return (
@@ -365,10 +336,10 @@ export default function WeatherMap({
           ⌖ <span>Las 4 provincias</span>
         </button>
       </div>
-      {error && (
+      {unsupported && (
         <div className="map-error" role="status">
-          {error}{" "}
-          <button onClick={() => changeBase(base)}>Reintentar fondo</button>
+          Este navegador no puede dibujar el mapa. Consulta la tabla de
+          estaciones.
         </div>
       )}
 

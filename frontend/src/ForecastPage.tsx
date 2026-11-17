@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { api } from "./data";
+import { daySummaries, ModelDays, ModelTable as HourlyModelTable, TABLE_DAYS, tableRows } from "./ModelForecastTable";
 
 const Meteogram = lazy(() =>
   import("./ForecastCharts").then((m) => ({ default: m.Meteogram })),
@@ -93,6 +94,8 @@ export type ModelForecast = {
   time: number[];
   series: Record<string, (number | null)[]>;
   accumulated_6h: { time: number[]; precipitation: (number | null)[]; snowfall: (number | null)[] };
+  // Absent in snapshots stored before the hourly table existed.
+  accumulated_3h?: { time: number[]; precipitation: (number | null)[]; snowfall: (number | null)[] };
 };
 export type EnsembleForecast = {
   model: string;
@@ -468,14 +471,21 @@ function horizon(times: number[][], days: number): [number, number] {
   return [start, Math.min(last, start + days * 86400000)];
 }
 
+const MODEL_NAMES: Record<string, string> = { arome: "AROME", gfs: "GFS", ecmwf: "ECMWF" };
+const MODEL_BUTTONS: Record<string, string> = { arome: "AROME 2,5 km", gfs: "GFS", ecmwf: "ECMWF IFS" };
+const nameOf = (code: string) => MODEL_NAMES[code] ?? code.toUpperCase();
+
 function ModelSection({ place }: { place: Place }) {
-  const models = ["gfs", "ecmwf"].map((code) => [code, place.models[code]] as const);
+  const models = Object.entries(place.models);
   const [days, setDays] = useState(storedDays);
-  // One time range for both models, so their horizons compare at a glance.
+  // One time range for the global models, so their horizons compare at a glance; the
+  // short-range AROME gets its own, or it would fill a sliver of a 10-day axis.
   const range = useMemo(
-    () => horizon(models.flatMap(([, s]) => (s ? [s.data.time] : [])), days),
+    () => horizon(models.flatMap(([code, s]) => (s && code !== "arome" ? [s.data.time] : [])), days),
     [place, days],
   );
+  const rangeOf = (code: string, model: ModelForecast) =>
+    code === "arome" ? horizon([model.time], days) : range;
   const choose = (value: number) => {
     setDays(value);
     try {
@@ -487,7 +497,7 @@ function ModelSection({ place }: { place: Place }) {
   return (
     <section className="forecast-section" aria-labelledby={`models-${place.code}`}>
       <div className="forecast-section-head">
-        <h3 id={`models-${place.code}`}>Meteogramas GFS y ECMWF</h3>
+        <h3 id={`models-${place.code}`}>Meteogramas {models.map(([code]) => nameOf(code)).join(", ").replace(/, ([^,]*)$/, " y $1")}</h3>
         <div className="forecast-range" role="group" aria-label="Horizonte">
           {[4, 10, 16].map((value) => (
             <button
@@ -515,7 +525,7 @@ function ModelSection({ place }: { place: Place }) {
                 <h4>{snapshot.data.label}</h4>
                 <Freshness snapshot={snapshot} source={`Open-Meteo · ${runLabel(snapshot.data.run)}`} issued={false} />
                 <Suspense fallback={<p className="forecast-empty">Dibujando meteograma…</p>}>
-                  <Meteogram model={snapshot.data} range={range} />
+                  <Meteogram model={snapshot.data} range={rangeOf(code, snapshot.data)} />
                 </Suspense>
                 <p className="forecast-grid">
                   Rejilla: {num(snapshot.data.grid.latitude)}°, {num(snapshot.data.grid.longitude)}° · altitud
@@ -524,11 +534,116 @@ function ModelSection({ place }: { place: Place }) {
                 <ModelTable model={snapshot.data} />
               </>
             ) : (
-              <Missing what={code === "gfs" ? "GFS" : "ECMWF"} />
+              <Missing what={nameOf(code)} />
             )}
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+const MODEL_KEY = "meteocentro.forecast.model";
+const STEP_KEY = "meteocentro.forecast.step";
+
+function stored(key: string) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Private mode or blocked storage: the choice lasts for this view only.
+  }
+}
+
+/** One model at a time: days at a glance and a coloured table, as on model-forecast sites. */
+function ModelForecastSection({ place }: { place: Place }) {
+  const codes = Object.keys(place.models);
+  const [chosen, setChosen] = useState(() => stored(MODEL_KEY));
+  const [step, setStep] = useState<3 | 6>(() => (stored(STEP_KEY) === "6" ? 6 : 3));
+  // A model outside this place's domain (AROME in Huétor) falls back to the first one.
+  const code = chosen && codes.includes(chosen) ? chosen : codes[0];
+  const snapshot = code ? place.models[code] : null;
+  const model = snapshot?.data;
+  const days = TABLE_DAYS[code] ?? 7;
+  const from = useMemo(() => Date.now() - 90 * 60000, [model]);
+  const fine = useMemo(() => (model ? tableRows(model, 3, from, days) : []), [model, from, days]);
+  const rows = useMemo(() => (model ? (step === 3 ? fine : tableRows(model, 6, from, days)) : []), [model, fine, step, from, days]);
+  const summaries = useMemo(() => (model ? daySummaries(model, fine) : []), [model, fine]);
+  const last = rows.length ? rows[rows.length - 1].t * 1000 : null;
+  return (
+    <section className="forecast-section" aria-labelledby={`table-${place.code}`}>
+      <h3 id={`table-${place.code}`}>Previsión por modelos</h3>
+      <div className="model-bar">
+        <span className="model-bar-label">Modelo</span>
+        <div className="model-buttons" role="group" aria-label="Modelo">
+          {codes.map((c) => (
+            <button
+              key={c}
+              aria-pressed={c === code}
+              className={c === code ? "active" : ""}
+              onClick={() => {
+                setChosen(c);
+                remember(MODEL_KEY, c);
+              }}
+            >
+              {MODEL_BUTTONS[c] ?? nameOf(c)}
+            </button>
+          ))}
+        </div>
+        <span className="model-bar-label">Cada</span>
+        <div className="model-buttons" role="group" aria-label="Intervalo de la tabla">
+          {([3, 6] as const).map((value) => (
+            <button
+              key={value}
+              aria-pressed={step === value}
+              className={step === value ? "active" : ""}
+              onClick={() => {
+                setStep(value);
+                remember(STEP_KEY, String(value));
+              }}
+            >
+              {value} h
+            </button>
+          ))}
+        </div>
+      </div>
+      {!place.models.arome && (
+        <p className="forecast-note">AROME no se ofrece aquí: su dominio termina en 37,5° N y esta localidad queda al sur.</p>
+      )}
+      {snapshot && model ? (
+        <>
+          <div className="model-info">
+            <strong>{model.label}</strong> · {runLabel(model.run)} · rejilla a {num(model.grid.elevation, " m")} de
+            altitud
+            {last ? ` · hasta ${stamp.format(new Date(last))}` : ""}
+            <Freshness snapshot={snapshot} source="Open-Meteo" issued={false} />
+          </div>
+          {rows.length ? (
+            <>
+              <ModelDays days={summaries} />
+              <HourlyModelTable model={model} rows={rows} />
+              <p className="forecast-note">
+                Valores del punto de rejilla más cercano en hora oficial. La lluvia de cada fila es la acumulada desde
+                la fila anterior; el total diario asigna cada intervalo al día de su hora central y queda en blanco si
+                falta algún dato. Máximas y mínimas, de las horas de la tabla.
+                {code === "ecmwf" && " ECMWF solo da intervalos de 6 h a partir de 144 h de la pasada."}
+                {code === "arome" && " AROME llega como mucho a 51 h desde su pasada."}
+              </p>
+            </>
+          ) : (
+            <p className="forecast-empty">La pasada recogida de este modelo ya no cubre las próximas horas.</p>
+          )}
+        </>
+      ) : (
+        <Missing what={nameOf(code ?? "")} />
+      )}
     </section>
   );
 }
@@ -606,7 +721,7 @@ export default function ForecastPage({
           <h1>Previsión para {place?.name ?? "Madrid y Huétor de Santillán"}</h1>
         </div>
         <div className="refresh-status" role="status">
-          {error ? error : data ? "Previsiones de AEMET y de los modelos GFS y ECMWF" : "Consultando previsiones…"}
+          {error ? error : data ? "Previsiones de AEMET y de los modelos AROME, GFS y ECMWF" : "Consultando previsiones…"}
         </div>
       </section>
       {data && place && (
@@ -660,6 +775,7 @@ export default function ForecastPage({
               <Missing what="Predicción horaria de AEMET" />
             )}
           </section>
+          <ModelForecastSection place={place} key={`t-${place.code}`} />
           <ModelSection place={place} key={`m-${place.code}`} />
           {place.ensembles && <EnsembleSection place={place} key={`e-${place.code}`} />}
           <footer className="forecast-attribution">

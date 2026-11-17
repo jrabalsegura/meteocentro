@@ -1,8 +1,9 @@
 """Forecasts for the «Previsiones» tab. Never mixed with observations or histories.
 
 AEMET municipal forecasts run as an AEMET worker job, so every call is reserved from
-the shared AEMET quota. Open-Meteo (GFS/ECMWF deterministic and ensembles) runs as a
-local worker job: documented public API, no key, non-commercial use with attribution.
+the shared AEMET quota. Open-Meteo (AROME/GFS/ECMWF deterministic and GFS/ECMWF
+ensembles) runs as a local worker job: documented public API, no key, non-commercial
+use with attribution.
 """
 
 import argparse
@@ -38,6 +39,8 @@ class Location:
     # Meteoalerta: autonomous community bundle and warning zone (see alerts.py).
     warning_area: str
     warning_zone: str
+    # Deterministic models offered here, in display order (AROME only inside its domain).
+    models: tuple[str, ...] = ("gfs", "ecmwf")
 
 
 LOCATIONS = {
@@ -53,6 +56,7 @@ LOCATIONS = {
             "https://www.aemet.es/es/eltiempo/prediccion/municipios/madrid-id28079",
             "72",
             "722802",
+            ("arome", "gfs", "ecmwf"),
         ),
         Location(
             "huetor-santillan",
@@ -392,12 +396,25 @@ class Model:
     meta: str
     label: str
     days: int
+    # Hours from the run with native 3-hourly (or finer) output; beyond, only 6-hourly.
+    three_hourly_hours: int | None = None
 
 
+# AROME France (0.025°) covers 37.5–55.4 °N: Madrid yes, Huétor de Santillán (37.22 °N)
+# no. Runs every 3 h; the longest runs reach +51 h.
 DETERMINISTIC = (
+    Model(
+        "arome",
+        "meteofrance_arome_france",
+        "meteofrance_arome_france",
+        "meteofrance_arome_france0025",
+        "AROME (Météo-France) 2,5 km",
+        3,
+    ),
     Model("gfs", "gfs_global", "gfs_global", "ncep_gfs025", "GFS (NOAA) 0,25°", 16),
-    Model("ecmwf", "ecmwf_ifs025", "ecmwf_ifs025", "ecmwf_ifs025", "ECMWF IFS 0,25°", 15),
+    Model("ecmwf", "ecmwf_ifs025", "ecmwf_ifs025", "ecmwf_ifs025", "ECMWF IFS 0,25°", 15, 144),
 )
+DETERMINISTIC_BY_CODE = {m.code: m for m in DETERMINISTIC}
 ENSEMBLES = (
     Model("gfs", "gfs05", "ncep_gefs05", "ncep_gefs05", "GEFS (NOAA) 0,5° · 31 miembros", 16),
     Model(
@@ -411,12 +428,15 @@ ENSEMBLES = (
 )
 INSTANT = (
     "temperature_2m",
+    "apparent_temperature",
+    "relative_humidity_2m",
     "dew_point_2m",
     "temperature_850hPa",
     "pressure_msl",
     "wind_speed_10m",
     "wind_gusts_10m",
     "wind_direction_10m",
+    "cloud_cover",
     "cloud_cover_low",
     "cloud_cover_mid",
     "cloud_cover_high",
@@ -424,20 +444,24 @@ INSTANT = (
 ACCUMULATED = ("precipitation", "snowfall")
 EXPECTED_UNITS = {
     "temperature_2m": "°C",
+    "apparent_temperature": "°C",
+    "relative_humidity_2m": "%",
     "dew_point_2m": "°C",
     "temperature_850hPa": "°C",
     "pressure_msl": "hPa",
     "wind_speed_10m": "km/h",
     "wind_gusts_10m": "km/h",
     "wind_direction_10m": "°",
+    "cloud_cover": "%",
     "cloud_cover_low": "%",
     "cloud_cover_mid": "%",
     "cloud_cover_high": "%",
     "precipitation": "mm",
     "snowfall": "cm",
 }
-STEP = 3 * 3600  # Instantaneous values: every 3 h, native for both models up to 144 h.
+STEP = 3 * 3600  # Instantaneous values: every 3 h, native for every model up to 144 h.
 BIN = 6 * 3600  # Precipitation: 6 h totals ending at 00/06/12/18 UTC.
+SHORT_BIN = 3 * 3600  # And 3 h totals for the hourly table, where the model is 3-hourly.
 
 
 def times_of(hourly) -> list[int]:
@@ -468,12 +492,12 @@ def sampled(times, values, step):
     return [(t, v) for t, v in zip(times, values, strict=True) if t % step == 0]
 
 
-def binned(times, values):
-    """Sum hourly totals into 6 h windows; any missing hour leaves the window unknown."""
+def binned(times, values, width=BIN):
+    """Sum hourly totals into fixed windows; any missing hour leaves the window unknown."""
     index = {t: v for t, v in zip(times, values, strict=True)}
     result = []
-    for end in (t for t in times if t % BIN == 0):
-        hours = [index.get(end - h * 3600, "absent") for h in range(6)]
+    for end in (t for t in times if t % width == 0):
+        hours = [index.get(end - h * 3600, "absent") for h in range(width // 3600)]
         if "absent" in hours:
             continue  # Window starts before the returned range.
         result.append((end, None if None in hours else round(sum(hours), 2)))
@@ -517,6 +541,12 @@ def normalize_deterministic(document, model: Model, run: datetime | None) -> dic
     raw = {v: series(hourly, key, len(times)) for key, v in keys}
     axis, instant = trimmed({v: sampled(times, raw[v], STEP) for v in INSTANT})
     rain_axis, rain = trimmed({v: binned(times, raw[v]) for v in ACCUMULATED})
+    short = {v: binned(times, raw[v], SHORT_BIN) for v in ACCUMULATED}
+    if model.three_hourly_hours is not None:
+        # Past its 3-hourly range the model is 6-hourly: a 3 h split would be invented.
+        limit = (run.timestamp() if run else times[0]) + model.three_hourly_hours * 3600
+        short = {v: [(t, x) for t, x in pairs if t <= limit] for v, pairs in short.items()}
+    short_axis, short_rain = trimmed(short)
     if not axis:
         raise ValueError("empty_model")
     return {
@@ -527,6 +557,7 @@ def normalize_deterministic(document, model: Model, run: datetime | None) -> dic
         "time": axis,
         "series": instant,
         "accumulated_6h": {"time": rain_axis, **rain},
+        "accumulated_3h": {"time": short_axis, **short_rain},
     }
 
 
@@ -652,7 +683,13 @@ def fetch_open_meteo(client: OpenMeteo):
     runs = {("det", m.code): client.run(m) for m in DETERMINISTIC}
     runs |= {("ens", m.code): client.run(m) for m in ENSEMBLES}
     jobs = [
-        (location, "deterministic", FORECAST_URL, DETERMINISTIC, (*INSTANT, *ACCUMULATED))
+        (
+            location,
+            "deterministic",
+            FORECAST_URL,
+            tuple(DETERMINISTIC_BY_CODE[code] for code in location.models),
+            (*INSTANT, *ACCUMULATED),
+        )
         for location in LOCATIONS.values()
     ] + [
         (location, "ensemble", ENSEMBLE_URL, ENSEMBLES, ("temperature_850hPa", "precipitation"))

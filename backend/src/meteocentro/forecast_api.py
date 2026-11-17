@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from meteocentro.alerts import days as warning_days
 from meteocentro.db import get_session
-from meteocentro.forecast import DETERMINISTIC, ENSEMBLES, LOCATIONS
+from meteocentro.forecast import ENSEMBLES, LOCATIONS
 from meteocentro.models import ForecastSnapshot
 
 router = APIRouter(prefix="/api/v1")
@@ -35,7 +35,8 @@ ATTRIBUTION = [
     },
     {
         "source": "open_meteo",
-        "text": "Datos de modelos GFS (NOAA) y ECMWF servidos por Open-Meteo.com (CC BY 4.0).",
+        "text": "Datos de modelos AROME (Météo-France), GFS (NOAA) y ECMWF servidos por "
+        "Open-Meteo.com (CC BY 4.0).",
         "url": "https://open-meteo.com/",
     },
 ]
@@ -102,9 +103,10 @@ def forecasts(db: Db):
                     product: snapshot("aemet", location.code, product)
                     for product in ("daily", "hourly")
                 },
+                # Display order; a model outside its domain is simply not listed.
                 "models": {
-                    model.code: snapshot("open_meteo", location.code, f"deterministic_{model.code}")
-                    for model in DETERMINISTIC
+                    code: snapshot("open_meteo", location.code, f"deterministic_{code}")
+                    for code in location.models
                 },
                 "ensembles": {
                     model.code: snapshot("open_meteo", location.code, f"ensemble_{model.code}")

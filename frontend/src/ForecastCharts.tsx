@@ -13,6 +13,7 @@ import {
 import { SVGRenderer } from "echarts/renderers";
 import { LabelLayout } from "echarts/features";
 import type { Climate, EnsembleForecast, ModelForecast } from "./ForecastPage";
+import { cloudiness, skySymbol } from "./forecastSky";
 
 use([
   LineChart,
@@ -275,21 +276,6 @@ function line(color: string, width = 2, dashed: false | "dashed" | "dotted" = fa
   return { type: "line", color, lineStyle: { color, width, type: dashed || "solid" } };
 }
 
-const localHour = new Intl.DateTimeFormat("es-ES", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Madrid" });
-
-/** A sky symbol per 6 h window from model cloud layers and precipitation; high cloud counts less. */
-function skySymbol(cloud: number | null, rain: number | null, snow: number | null, middle: number) {
-  if (cloud === null || rain === null) return "";
-  const hour = Number(localHour.format(middle));
-  const night = hour < 7 || hour >= 21;
-  if (rain >= 0.5) return (snow ?? 0) >= 0.5 ? "🌨️" : "🌧️";
-  if (rain >= 0.1) return night ? "🌧️" : "🌦️";
-  if (cloud < 20) return night ? "🌙" : "☀️";
-  if (cloud < 50) return night ? "🌙" : "🌤️";
-  if (cloud < 80) return "⛅";
-  return "☁️";
-}
-
 export function Meteogram({ model, range }: { model: ModelForecast; range: [number, number] }) {
   const s = model.series;
   const t = model.time;
@@ -309,12 +295,8 @@ export function Meteogram({ model, range }: { model: ModelForecast; range: [numb
       .map((end, i) => ({ end, middle: end - 3 * 3600, i }))
       // Daily symbols use the window ending at 12 UTC (late morning, official time).
       .filter(({ end }) => (end - (every === 24 ? 12 * 3600 : 0)) % (every * 3600) === 0);
-    const cloudAt = (time: number) => {
-      const values = [at("cloud_cover_low", time), at("cloud_cover_mid", time), at("cloud_cover_high", time)];
-      if (values.some((v) => v === null)) return null;
-      const [low, mid, high] = values as number[];
-      return Math.max(low, mid, high * 0.6);
-    };
+    const cloudAt = (time: number) =>
+      cloudiness(at("cloud_cover_low", time), at("cloud_cover_mid", time), at("cloud_cover_high", time));
     const panels: Panel[] = [
       { unit: "", height: 22, bare: true },
       {

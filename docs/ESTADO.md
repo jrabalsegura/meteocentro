@@ -1,10 +1,18 @@
 # Estado del desarrollo
 
-Última actualización: 1 de noviembre de 2026.
+Última actualización: 17 de noviembre de 2026.
 
 **Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 24-9-2026 se actualiza al commit `22998d6d3de593d307dabeb87263d0b60fdfa25b`: sesiones nuevas de un año y horas aproximadas separadas de mínima/máxima según nuestro archivo de la misma fuente, conservando los valores extremos. La búsqueda mantiene el encuadre en el primer resultado con zoom 12. Se conservan la separación de marcadores según espacio disponible, el filtro de una hora, el resumen diario, la vista inicial de Madrid, el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
+
+## Sin aviso de fondo del mapa — 17 de noviembre de 2026
+
+**Petición:** el aviso «El fondo cartográfico no está disponible» (y «La cartografía está tardando») seguía saliendo sin motivo tras el PR #40, y no aporta nada: si el fondo no carga, se ve. El usuario pidió quitarlo. Rama `claude/quitar-aviso-fondo`.
+
+**Cambio:** en `WeatherMap.tsx` se eliminan los dos textos, el contador de fallos de teselas, los manejadores `error` y `sourcedata` del mapa, el temporizador de 10 s y el botón «Reintentar fondo». Se elimina también el estilo de ese botón en `style.css`. El único aviso que queda en el mapa es el de un navegador que no puede dibujarlo (WebGL), que no tiene que ver con el fondo y conserva `.map-error`. El selector Topográfico/Claro, la vista inicial de Madrid y «Ver las cuatro provincias» no cambian. E2E: se elimina «una tesela fallida no muestra el aviso de cartografía» y el recorrido con teselas caídas deja de esperar el aviso (ahora «sin cartografía: tabla, fallo de API, exclusión tras refresco y URL directa»).
+
+**Validación:** `make check` correcto: Ruff, 231 pruebas de backend, 5 de fase 0, 8 de despliegue y build web. `make e2e`: 35 correctos y uno omitido (el optativo de administración real). No se ha revisado en el navegador con sesión iniciada. No desplegado.
 
 ## Clave AEMET caducada y avisos por correo — 1 de noviembre de 2026
 

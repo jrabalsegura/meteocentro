@@ -453,10 +453,6 @@ main {
   font-size: 0.83rem;
   z-index: 2;
 }
-.map-error button {
-  margin-top: 8px;
-  font-size: 0.8rem;
-}
 .maplibregl-ctrl-attrib {
   font-size: 11px !important;
 }

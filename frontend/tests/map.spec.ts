@@ -324,27 +324,11 @@ test("móvil 390: filtros plegables, panel inferior, teclado y sin desbordamient
   await page.screenshot({ path: "test-results/mobile.png", fullPage: false });
 });
 
-test("una tesela fallida no muestra el aviso de cartografía", async ({
-  page,
-}) => {
-  await mockApi(page);
-  let failed = 0;
-  await page.route("https://www.ign.es/**", (route) =>
-    failed++ === 0 ? route.abort() : route.fallback(),
-  );
-  await page.goto("/");
-  await expect(page.locator("tbody tr")).toHaveCount(32);
-  await expect.poll(() => failed).toBeGreaterThan(3);
-  await page.waitForTimeout(500);
-  await expect(page.locator(".map-error")).toHaveCount(0);
-});
-
-test("fallos de cartografía y API, exclusión tras refresco y URL directa", async ({
+test("sin cartografía: tabla, fallo de API, exclusión tras refresco y URL directa", async ({
   page,
 }) => {
   const state = await mockApi(page, 32, "error");
   await page.goto("/");
-  await expect(page.locator(".map-error")).toBeVisible();
   await expect(page.locator("tbody tr")).toHaveCount(32);
   await page.locator("tbody .station-name").first().click();
   const id = new URL(page.url()).searchParams.get("station")!;

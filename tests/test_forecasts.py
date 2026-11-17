@@ -214,7 +214,6 @@ def model_document(models, hours=48, **overrides):
     for model in models:
         for variable, unit in (
             ("temperature_2m", "°C"),
-            ("apparent_temperature", "°C"),
             ("relative_humidity_2m", "%"),
             ("dew_point_2m", "°C"),
             ("temperature_850hPa", "°C"),

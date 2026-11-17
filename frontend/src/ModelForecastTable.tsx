@@ -286,14 +286,10 @@ export function ModelTable({ model, rows }: { model: ModelForecast; rows: Row[] 
               <small>°C</small>
             </th>
             <th rowSpan={2}>
-              Sens.
-              <small>°C</small>
-            </th>
-            <th colSpan={3}>Viento (km/h)</th>
-            <th rowSpan={2}>
               Lluvia
               <small>mm</small>
             </th>
+            <th colSpan={3}>Viento (km/h)</th>
             <th rowSpan={2}>
               Hum.
               <small>%</small>
@@ -321,7 +317,6 @@ export function ModelTable({ model, rows }: { model: ModelForecast; rows: Row[] 
               {group.rows.map((row, i) => {
                 const ms = row.t * 1000;
                 const temp = v("temperature_2m", row.t);
-                const feels = v("apparent_temperature", row.t);
                 const speed = v("wind_speed_10m", row.t);
                 const gust = v("wind_gusts_10m", row.t);
                 const humidity = v("relative_humidity_2m", row.t);
@@ -346,14 +341,6 @@ export function ModelTable({ model, rows }: { model: ModelForecast; rows: Row[] 
                     <td className="strong" style={paint(temp, TEMP, 33, -6)}>
                       {fmt(temp, 1)}
                     </td>
-                    <td style={paint(feels, TEMP, 33, -6)}>{fmt(feels)}</td>
-                    <td className="dir">
-                      <Wind direction={v("wind_direction_10m", row.t)} />
-                    </td>
-                    <td style={paint(speed, WIND, 70)}>{fmt(speed)}</td>
-                    <td className="strong" style={paint(gust, GUST, 70)}>
-                      {fmt(gust)}
-                    </td>
                     <td
                       className={row.rain ? "strong" : "faint"}
                       style={row.rain ? paint(row.rain, RAIN, 7) : undefined}
@@ -362,6 +349,13 @@ export function ModelTable({ model, rows }: { model: ModelForecast; rows: Row[] 
                       {row.rain === null ? "—" : row.rain === 0 ? "0" : fmt(row.rain, 1)}
                       {snowy && <small> ❄</small>}
                       {mixed && row.step === 6 && <small className="step"> 6 h</small>}
+                    </td>
+                    <td className="dir">
+                      <Wind direction={v("wind_direction_10m", row.t)} />
+                    </td>
+                    <td style={paint(speed, WIND, 70)}>{fmt(speed)}</td>
+                    <td className="strong" style={paint(gust, GUST, 70)}>
+                      {fmt(gust)}
                     </td>
                     <td style={paint(humidity, HUMIDITY)}>{fmt(humidity)}</td>
                     <td>{fmt(v("pressure_msl", row.t))}</td>

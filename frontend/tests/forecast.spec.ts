@@ -23,7 +23,6 @@ function model(code: string, label: string, count = 40) {
     time,
     series: {
       temperature_2m: wave(18),
-      apparent_temperature: wave(17),
       relative_humidity_2m: wave(70),
       dew_point_2m: wave(8),
       temperature_850hPa: wave(12),
@@ -195,14 +194,16 @@ function place(code: string, name: string, withEnsemble: boolean) {
   };
 }
 
-async function mockForecasts(page: Page) {
+async function mockForecasts(page: Page, change: (madrid: ReturnType<typeof place>) => void = () => {}) {
   const state = await mockApi(page, 3);
+  const madrid = place("madrid", "Madrid", true);
+  change(madrid);
   await page.route("**/api/v1/forecasts", (route) => {
     state.requests.push("/api/v1/forecasts");
     return route.fulfill({
       json: {
         locations: [
-          place("madrid", "Madrid", true),
+          madrid,
           place("huetor-santillan", "Huétor de Santillán", true),
         ],
         attribution: [
@@ -216,23 +217,28 @@ async function mockForecasts(page: Page) {
 }
 
 for (const width of [1440, 390]) {
-  test(`previsiones ${width}: AEMET, meteogramas, conjuntos y cambio de localidad`, async ({
+  test(`previsiones ${width}: AEMET, modelos, meteogramas, conjuntos y cambio de localidad`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
     const state = await mockForecasts(page);
     await page.goto("/");
-    // Second tab, right after the map.
-    await expect(page.getByRole("navigation", { name: "Principal" }).getByRole("link")).toHaveText([
+    // Models and AEMET, right after the map.
+    const nav = page.getByRole("navigation", { name: "Principal" });
+    await expect(nav.getByRole("link")).toHaveText([
       "Mapa",
-      "Previsiones",
+      "Modelos",
+      "AEMET",
       "Estaciones",
       "Datos diarios",
       "Históricos",
     ]);
-    await page.getByRole("link", { name: "Previsiones" }).click();
-    await expect(page).toHaveURL(/\/previsiones/);
+    await nav.getByRole("link", { name: "AEMET" }).click();
+    await expect(page).toHaveURL(/\/aemet/);
     await expect(page.getByRole("heading", { name: "Previsión para Madrid" })).toBeVisible();
+    // The AEMET tab holds only AEMET.
+    await expect(page.getByRole("heading", { name: "Previsión por modelos" })).toHaveCount(0);
+    await expect(page.locator(".forecast-chart")).toHaveCount(0);
     // The map may legitimately query before the click on a slow runner; only
     // requests made while the forecast tab is open count.
     const fromForecast = state.requests.length;
@@ -258,6 +264,23 @@ for (const width of [1440, 390]) {
     await expect(warningDays.nth(2).locator(".warning-text")).toHaveText("Chubascos tormentosos.");
     await expect(page.getByText("Avisos · zona Metropolitana y Henares")).toBeVisible();
     await page.locator(".warning-days").screenshot({ path: `test-results/avisos-${width}.png` });
+    await nav.getByRole("link", { name: "Modelos" }).click();
+    await expect(page).toHaveURL(/\/modelos/);
+    await expect(nav.getByRole("link", { name: "Modelos" })).toHaveClass(/active/);
+    await expect(page.locator(".forecast-day")).toHaveCount(0);
+    await expect(page.getByText("AROME no se ofrece aquí")).toHaveCount(0);
+    // No «feels like» column; rain follows temperature.
+    await expect(page.locator(".model-table thead tr").first().locator("th")).toHaveText([
+      "Día",
+      "Hora",
+      "Temp.°C",
+      "Lluviamm",
+      "Viento (km/h)",
+      "Hum.%",
+      "PresiónhPa",
+      "Nubes%",
+      "Tiempo",
+    ]);
     // Model table: AROME first in Madrid, one model at a time.
     const modelBar = page.getByRole("group", { name: "Modelo" });
     await expect(modelBar.getByRole("button")).toHaveText(["AROME 2,5 km", "GFS", "ECMWF IFS"]);
@@ -306,14 +329,18 @@ for (const width of [1440, 390]) {
     await expect(page.getByText("AROME no se ofrece aquí")).toBeVisible();
     await expect(page.locator(".model-info")).toContainText("GFS (NOAA) 0,25°");
     await expect(page.getByText("ECMWF: todavía no hay datos")).toBeVisible();
+    // GFS meteogram (ECMWF missing) and both ensembles.
+    await expect(page.locator(".forecast-chart svg")).toHaveCount(3);
+    // The place is kept when changing tab.
+    await nav.getByRole("link", { name: "AEMET" }).click();
+    await expect(page).toHaveURL(/\/aemet\?.*lugar=huetor-santillan/);
+    await expect(page.getByRole("heading", { name: "Previsión para Huétor de Santillán" })).toBeVisible();
     // A stale warnings snapshot is unknown, never green.
     await expect(page.locator(".warning-day.level-unknown")).toHaveCount(3);
     await expect(page.locator(".warning-day.level-verde")).toHaveCount(0);
     await expect(page.locator(".forecast-meta.stale").first()).toContainText(
       "sin actualizar recientemente",
     );
-    // GFS meteogram (ECMWF missing) and both ensembles.
-    await expect(page.locator(".forecast-chart svg")).toHaveCount(3);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth,
     );
@@ -327,4 +354,18 @@ test("previsiones: un fallo de la API se muestra sin datos inventados", async ({
   await page.goto("/previsiones");
   await expect(page.getByRole("status")).toContainText("No se pudo consultar la API");
   await expect(page.locator(".forecast-day")).toHaveCount(0);
+});
+
+test("modelos: AROME sin datos en Madrid no se presenta como fuera de cobertura", async ({ page }) => {
+  await mockForecasts(page, (madrid) => {
+    (madrid.models as Record<string, unknown>).arome = null;
+  });
+  // Old «Previsiones» links open the models tab.
+  await page.goto("/previsiones");
+  await expect(page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Modelos" })).toHaveClass(
+    /active/,
+  );
+  await expect(page.getByRole("group", { name: "Modelo" }).getByRole("button", { name: "AROME 2,5 km" })).toBeVisible();
+  await expect(page.locator(".forecast-empty").filter({ hasText: "AROME: todavía no hay datos" }).first()).toBeVisible();
+  await expect(page.getByText("AROME no se ofrece aquí")).toHaveCount(0);
 });

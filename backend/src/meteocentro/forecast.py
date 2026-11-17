@@ -428,7 +428,6 @@ ENSEMBLES = (
 )
 INSTANT = (
     "temperature_2m",
-    "apparent_temperature",
     "relative_humidity_2m",
     "dew_point_2m",
     "temperature_850hPa",
@@ -444,7 +443,6 @@ INSTANT = (
 ACCUMULATED = ("precipitation", "snowfall")
 EXPECTED_UNITS = {
     "temperature_2m": "°C",
-    "apparent_temperature": "°C",
     "relative_humidity_2m": "%",
     "dew_point_2m": "°C",
     "temperature_850hPa": "°C",

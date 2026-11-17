@@ -82,7 +82,10 @@ function App() {
   const hasDay = ["temperature", "humidity", "wind_speed"].includes(metric);
   const isHistory = route.path === "/historicos" || route.path === "/diarios";
   const isTable = route.path === "/estaciones";
-  const isForecast = route.path === "/previsiones";
+  // «Previsiones» became two tabs; its old links open the models one.
+  const forecastView =
+    route.path === "/aemet" ? "aemet" : route.path === "/modelos" || route.path === "/previsiones" ? "models" : null;
+  const isForecast = forecastView !== null;
   const detailId = route.path.startsWith("/estaciones/")
     ? route.path.split("/")[2]
     : null;
@@ -362,16 +365,24 @@ function App() {
           >
             Mapa
           </a>
-          <a
-            className={isForecast ? "active" : ""}
-            href={tabHref("/previsiones")}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("/previsiones");
-            }}
-          >
-            Previsiones
-          </a>
+          {(
+            [
+              ["/modelos", "Modelos", "models"],
+              ["/aemet", "AEMET", "aemet"],
+            ] as const
+          ).map(([path, label, view]) => (
+            <a
+              key={path}
+              className={forecastView === view ? "active" : ""}
+              href={tabHref(path)}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(path);
+              }}
+            >
+              {label}
+            </a>
+          ))}
           <a
             className={isTable ? "active" : ""}
             href={tabHref("/estaciones")}
@@ -410,8 +421,9 @@ function App() {
         {isForecast ? (
           <Suspense fallback={<p>Abriendo previsiones…</p>}>
             <ForecastPage
+              view={forecastView}
               place={route.params.get("lugar")}
-              onPlace={(code) => navigate("/previsiones", { lugar: code })}
+              onPlace={(code) => navigate(forecastView === "aemet" ? "/aemet" : "/modelos", { lugar: code })}
               refresh={refresh}
             />
           </Suspense>

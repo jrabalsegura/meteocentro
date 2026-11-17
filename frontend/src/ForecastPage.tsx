@@ -614,7 +614,8 @@ function ModelForecastSection({ place }: { place: Place }) {
           ))}
         </div>
       </div>
-      {!place.models.arome && (
+      {/* Only a place outside AROME's domain; a missing AROME snapshot is shown as missing data. */}
+      {!("arome" in place.models) && (
         <p className="forecast-note">AROME no se ofrece aquí: su dominio termina en 37,5° N y esta localidad queda al sur.</p>
       )}
       {snapshot && model ? (
@@ -687,10 +688,12 @@ function EnsembleSection({ place }: { place: Place }) {
 }
 
 export default function ForecastPage({
+  view,
   place: requested,
   onPlace,
   refresh,
 }: {
+  view: "models" | "aemet";
   place: string | null;
   onPlace: (code: string) => void;
   refresh: number;
@@ -717,11 +720,17 @@ export default function ForecastPage({
     <div className="forecast-page">
       <section className="workspace-heading">
         <div>
-          <div className="eyebrow">PREVISIONES</div>
+          <div className="eyebrow">{view === "aemet" ? "PREDICCIÓN AEMET" : "MODELOS"}</div>
           <h1>Previsión para {place?.name ?? "Madrid y Huétor de Santillán"}</h1>
         </div>
         <div className="refresh-status" role="status">
-          {error ? error : data ? "Previsiones de AEMET y de los modelos AROME, GFS y ECMWF" : "Consultando previsiones…"}
+          {error
+            ? error
+            : data
+              ? view === "aemet"
+                ? "Predicción municipal y avisos de AEMET"
+                : "Modelos AROME, GFS y ECMWF"
+              : "Consultando previsiones…"}
         </div>
       </section>
       {data && place && (
@@ -739,6 +748,7 @@ export default function ForecastPage({
               </button>
             ))}
           </div>
+          {view === "aemet" && (
           <section className="forecast-section" aria-labelledby={`aemet-${place.code}`}>
             <h3 id={`aemet-${place.code}`}>
               Predicción AEMET{" "}
@@ -775,11 +785,18 @@ export default function ForecastPage({
               <Missing what="Predicción horaria de AEMET" />
             )}
           </section>
-          <ModelForecastSection place={place} key={`t-${place.code}`} />
-          <ModelSection place={place} key={`m-${place.code}`} />
-          {place.ensembles && <EnsembleSection place={place} key={`e-${place.code}`} />}
+          )}
+          {view === "models" && (
+            <>
+              <ModelForecastSection place={place} key={`t-${place.code}`} />
+              <ModelSection place={place} key={`m-${place.code}`} />
+              {place.ensembles && <EnsembleSection place={place} key={`e-${place.code}`} />}
+            </>
+          )}
           <footer className="forecast-attribution">
-            {data.attribution.map((item) => (
+            {data.attribution
+              .filter((item) => (item.source === "aemet") === (view === "aemet"))
+              .map((item) => (
               <p key={item.source}>
                 <a href={item.url} target="_blank" rel="noreferrer">
                   {item.text}

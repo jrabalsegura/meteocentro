@@ -16,6 +16,8 @@
 
 **Validación:** `make check` correcto: Ruff, 234 pruebas de backend, 5 de fase 0, 8 de despliegue y build web. `make e2e`: 36 correctos y uno omitido (sin prueba e2e nueva). En local (`make up`, 133 estaciones recientes) revisado en el navegador: temperatura y humedad sobre ambos fondos, recorte provincial, desvanecimiento sin estaciones, activar/desactivar sin errores de consola.
 
+**Despliegue:** solicitado por el usuario. CI del PR #53 en verde (6 comprobaciones) y fusionado como `3afe6568875b2e24f96d8aa524f3d19602ff51bd`. En `remote`, imágenes construidas desde ese SHA (amd64). `ops.py prepare` en un directorio nuevo con el mismo modo, dominio, puerto 8089 y configuración: solo cambian las imágenes de API, worker y web; sin migración. `ops.py apply` correcto: comprobación HTTP/SPA/protección y temporizador de avisos activado. Verificación: cuatro unidades y el temporizador activos; `state/current` apunta al intento del 18-11-2026 18:57 UTC y `state/previous` al del 17-11 17:46 (`926e775`); HTTPS 200 en `/` y `/modelos`, 401 sin sesión en `/api/v1/map`; el JS del mapa servido contiene «Capa de color» y la nota de interpolación; worker sin errores en sus primeros minutos. No se ha probado con sesión iniciada en el navegador de producción.
+
 ## Pestañas Modelos y AEMET; tabla sin sensación — 17 de noviembre de 2026
 
 **Petición:** tras el despliegue de la tabla por modelos, el usuario vio en Madrid el aviso de que AROME no llegaba y la columna de sensación vacía. Pide comprobarlo, quitar la sensación y poner la lluvia en su lugar, y separar «Previsiones» en dos pestañas superiores: Modelos y AEMET. Rama `claude/modelos-aemet-pestanas`.

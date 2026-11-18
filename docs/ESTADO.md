@@ -1,10 +1,20 @@
 # Estado del desarrollo
 
-Última actualización: 17 de noviembre de 2026.
+Última actualización: 18 de noviembre de 2026.
 
 **Estado general:** fases 0–7 implementadas y web privada desplegada en `meteocentro.joserabalsegura.com` con Podman/Quadlet rootless. El 24-9-2026 se actualiza al commit `22998d6d3de593d307dabeb87263d0b60fdfa25b`: sesiones nuevas de un año y horas aproximadas separadas de mínima/máxima según nuestro archivo de la misma fuente, conservando los valores extremos. La búsqueda mantiene el encuadre en el primer resultado con zoom 12. Se conservan la separación de marcadores según espacio disponible, el filtro de una hora, el resumen diario, la vista inicial de Madrid, el volumen PostgreSQL, los históricos, AEMET/Meteoclimatic y la política sin copias. Los diarios reportados de Meteoclimatic siguen indicando horario desconocido; su archivo diario remoto y CSV permanecen fuera del alcance. Los registros inferiores conservan la evidencia histórica de cada fase y sus comprobaciones locales.
 
 **Alcance vigente tras revisar costes:** primera versión con AEMET y Meteoclimatic; Wunderground aplazado como ampliación opcional. El usuario ha confirmado que no dispone de clave WU y prefiere prescindir de esa red si es cara. Se ha comprobado la tarifa pública y la elegibilidad/límite de las claves PWS; ver el documento de coste. No se ha contratado ningún servicio.
+
+## Capa de color interpolada en el mapa — 18 de noviembre de 2026
+
+**Petición:** el usuario propone una casilla en el mapa, desmarcada por defecto, que pinte la temperatura o la lluvia con colores interpolados entre estaciones (como hace Meteoclimatic). Rama `claude/capa-interpolada`. Sin despliegue.
+
+**Cambio (solo frontend):** casilla «Capa de color» en la barra del mapa para temperatura, humedad, lluvia de hoy y lluvia de la última hora (no para viento, racha ni intensidad, donde interpolar engaña). Estado en la URL (`capa=1`); sin el parámetro queda desmarcada. `frontend/src/interpolation.ts` calcula en el navegador una IDW (potencia 2, atenuada a cero a 30 km) sobre una rejilla de 720 px en Mercator que cubre las cuatro provincias; solo usa estaciones con dato de la última hora (`isRecentMapReading`), da opacidad completa hasta 10 km de la estación más cercana y transparencia a partir de 25 km, y se recorta a los límites provinciales. Se añade como fuente de imagen bajo las líneas provinciales y se reañade al cambiar entre Topográfico y Claro. Leyenda con escala fija (temperatura −10…40 °C; humedad 10…100 %; lluvia 0…60 mm, transparente con 0 mm) y la nota «Interpolación entre estaciones · orientativa». No se guarda nada ni cambia la API.
+
+**Limitaciones:** no corrige por altitud (la sierra puede salir más templada de lo real si sus estaciones más cercanas están en el llano); una estación errónea crea un «ojo de buey» local; con escala fija, diferencias de 2–3 °C se ven como variaciones suaves del mismo color.
+
+**Validación:** `make check` correcto: Ruff, 234 pruebas de backend, 5 de fase 0, 8 de despliegue y build web. `make e2e`: 36 correctos y uno omitido (sin prueba e2e nueva). En local (`make up`, 133 estaciones recientes) revisado en el navegador: temperatura y humedad sobre ambos fondos, recorte provincial, desvanecimiento sin estaciones, activar/desactivar sin errores de consola.
 
 ## Pestañas Modelos y AEMET; tabla sin sensación — 17 de noviembre de 2026
 

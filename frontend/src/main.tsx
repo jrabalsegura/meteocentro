@@ -659,6 +659,8 @@ function App() {
                 onSearchFocus={() => setSearchFocus(null)}
                 onView={setView}
                 onSelect={choose}
+                field={route.params.get("capa") === "1"}
+                onField={(on) => navigate(route.path, { capa: on ? "1" : null }, true)}
               />
             </Suspense>
             <div className="map-caption">

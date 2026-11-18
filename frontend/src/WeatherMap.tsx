@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import { type Map as LibreMap, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -15,10 +15,18 @@ import {
   color,
   date,
   freshnessLabels,
+  isRecentMapReading,
+  metricInfo,
   number,
   type Station,
 } from "./data";
 import { layoutMarkers } from "./mapMarkers";
+import {
+  fieldRamps,
+  rampGradient,
+  renderField,
+  type Extent,
+} from "./interpolation";
 
 const wmts = (service: string, layer: string) =>
   `https://www.ign.es/wmts/${service}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=default&FORMAT=image/jpeg&TILEMATRIXSET=GoogleMapsCompatible&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`;
@@ -38,6 +46,57 @@ const bounds = coords.reduce(
   (b, p) => b.extend(p as [number, number]),
   new maplibregl.LngLatBounds(),
 );
+// Fixed raster extent for the interpolated field: the four provinces plus a margin.
+const FIELD_EXTENT: Extent = {
+  west: bounds.getWest() - 0.05,
+  south: bounds.getSouth() - 0.05,
+  east: bounds.getEast() + 0.05,
+  north: bounds.getNorth() + 0.05,
+};
+const FIELD_WIDTH = 720;
+const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+const FIELD_HEIGHT = Math.round(
+  (FIELD_WIDTH * (mercY(FIELD_EXTENT.north) - mercY(FIELD_EXTENT.south)) * 180) /
+    Math.PI /
+    (FIELD_EXTENT.east - FIELD_EXTENT.west),
+);
+const FIELD_CORNERS: [[number, number], [number, number], [number, number], [number, number]] = [
+  [FIELD_EXTENT.west, FIELD_EXTENT.north],
+  [FIELD_EXTENT.east, FIELD_EXTENT.north],
+  [FIELD_EXTENT.east, FIELD_EXTENT.south],
+  [FIELD_EXTENT.west, FIELD_EXTENT.south],
+];
+// Paint the field and keep it only inside the four provinces.
+function fieldImage(stations: Station[], metric: string): string | null {
+  const ramp = fieldRamps[metric];
+  if (!ramp) return null;
+  const points = stations.flatMap((s) =>
+    s.latitude != null && s.longitude != null && isRecentMapReading(s.reading)
+      ? [{ lng: s.longitude, lat: s.latitude, value: s.reading!.value! }]
+      : [],
+  );
+  const pixels = renderField(points, ramp, FIELD_EXTENT, FIELD_WIDTH, FIELD_HEIGHT);
+  const canvas = document.createElement("canvas");
+  canvas.width = FIELD_WIDTH;
+  canvas.height = FIELD_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.putImageData(new ImageData(pixels, FIELD_WIDTH, FIELD_HEIGHT), 0, 0);
+  const top = mercY(FIELD_EXTENT.north), bottom = mercY(FIELD_EXTENT.south);
+  ctx.globalCompositeOperation = "destination-in";
+  ctx.beginPath();
+  for (const feature of boundaries.features)
+    for (const polygon of feature.geometry.coordinates)
+      for (const ring of polygon)
+        ring.forEach(([lng, lat], i) => {
+          const x = ((lng - FIELD_EXTENT.west) / (FIELD_EXTENT.east - FIELD_EXTENT.west)) * FIELD_WIDTH;
+          const y = ((top - mercY(lat)) / (top - bottom)) * FIELD_HEIGHT;
+          if (i) ctx.lineTo(x, y);
+          else ctx.moveTo(x, y);
+        });
+  ctx.fill("evenodd");
+  return canvas.toDataURL("image/png");
+}
 function style(base: "topo" | "light"): StyleSpecification {
   return {
     version: 8,
@@ -95,6 +154,8 @@ export default function WeatherMap({
   onSearchFocus,
   onView,
   onSelect,
+  field = false,
+  onField,
 }: {
   stations: Station[];
   metric: string;
@@ -104,6 +165,8 @@ export default function WeatherMap({
   onSearchFocus?: () => void;
   onView: (view: View) => void;
   onSelect: (id: string) => void;
+  field?: boolean;
+  onField?: (on: boolean) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<LibreMap | null>(null);
@@ -114,6 +177,7 @@ export default function WeatherMap({
   const [unsupported, setUnsupported] = useState(false);
   const [ready, setReady] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [styleRevision, setStyleRevision] = useState(0);
   const callbacks = useRef({ onView, onSelect, onSearchFocus });
   callbacks.current = { onView, onSelect, onSearchFocus };
   const firstView = useRef(initialView ?? DEFAULT_VIEW);
@@ -169,6 +233,8 @@ export default function WeatherMap({
       // A slow raster must not hold numeric observations hostage.
       instance.on("styledata", () => {
         setReady(true);
+        // A base-map change replaces the style; the field must be re-added.
+        if (!instance.getSource("field")) setStyleRevision((n) => n + 1);
       });
       return () => {
         resize.disconnect();
@@ -306,6 +372,38 @@ export default function WeatherMap({
       markers.current = [];
     };
   }, [stations, metric, selected, ready, revision]);
+  const fieldRamp = fieldRamps[metric];
+  const showField = field && !!fieldRamp;
+  const image = useMemo(
+    () => (showField ? fieldImage(stations, metric) : null),
+    [showField, stations, metric],
+  );
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !ready) return;
+    const remove = () => {
+      if (instance.getLayer("field")) instance.removeLayer("field");
+      if (instance.getSource("field")) instance.removeSource("field");
+    };
+    if (!image) {
+      remove();
+      return;
+    }
+    const source = instance.getSource("field") as maplibregl.ImageSource | undefined;
+    if (source) source.updateImage({ url: image, coordinates: FIELD_CORNERS });
+    else {
+      instance.addSource("field", { type: "image", url: image, coordinates: FIELD_CORNERS });
+      instance.addLayer(
+        {
+          id: "field",
+          type: "raster",
+          source: "field",
+          paint: { "raster-opacity": 0.62, "raster-resampling": "linear", "raster-fade-duration": 0 },
+        },
+        instance.getLayer("province-lines") ? "province-lines" : undefined,
+      );
+    }
+  }, [image, ready, styleRevision]);
   function changeBase(next: "topo" | "light") {
     setBase(next);
     map.current?.setStyle(style(next));
@@ -335,7 +433,31 @@ export default function WeatherMap({
         >
           ⌖ <span>Las 4 provincias</span>
         </button>
+        {fieldRamp && onField && (
+          <label className="field-toggle" title="Interpolación visual entre estaciones con dato de la última hora. No es una medición.">
+            <input
+              type="checkbox"
+              checked={field}
+              onChange={(e) => onField(e.target.checked)}
+            />
+            Capa de color
+          </label>
+        )}
       </div>
+      {showField && (
+        <div className="field-legend" aria-label={`Escala de color de ${metricInfo[metric]?.label ?? metric}`}>
+          <div className="field-legend-bar" style={{ background: rampGradient(fieldRamp) }} />
+          <div className="field-legend-labels">
+            {fieldRamp.stops
+              .filter((_, i, all) => i === 0 || i === all.length - 1 || i % 2 === 0)
+              .map(([v]) => (
+                <span key={v}>{v}</span>
+              ))}
+            <span>{fieldRamp.label}</span>
+          </div>
+          <small>Interpolación entre estaciones · orientativa</small>
+        </div>
+      )}
       {unsupported && (
         <div className="map-error" role="status">
           Este navegador no puede dibujar el mapa. Consulta la tabla de
